@@ -3,6 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --bg-card: #1e1e1f;
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -23,4 +29,48 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode */
+html:not([data-theme='dark']) {
+  @apply bg-white text-gray-900;
+}
+
+/* Dark mode */
+html[data-theme='dark'] {
+  @apply bg-[#0f0f1a] text-gray-100;
+}
+
+/* Smooth transitions */
+* {
+  @apply transition-colors duration-300;
+}
+
+button, a {
+  @apply transition-all duration-200;
+}
+
+/* Modern table styling */
+.table-modern {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-modern thead th {
+  padding: 0.85rem 0.875rem !important;
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  white-space: nowrap !important;
+}
+
+.table-modern tbody td {
+  padding: 0.5rem 0.875rem !important;
+  font-size: 0.8125rem !important;
+}
+
+.table-modern tbody tr {
+  transition: background-color 0.15s ease;
 }
