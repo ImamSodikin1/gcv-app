@@ -275,7 +275,7 @@ export default function RondaReports() {
                                 <XAxis dataKey="block" tick={{ fill: isDark ? '#9ca3af' : '#6b7280', fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fill: isDark ? '#9ca3af' : '#6b7280', fontSize: 11 }} />
                                 <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 12, fontSize: 12 }} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                <Legend wrapperStyle={{ fontSize: 11, color: isDark ? '#d1d5db' : '#374151' }} />
                                 <Bar dataKey="kejadian" name="Kejadian" fill="#ef4444" radius={[6, 6, 0, 0]} />
                                 <Bar dataKey="catatan" name="Catatan" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                             </BarChart>

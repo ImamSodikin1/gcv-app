@@ -20,6 +20,8 @@ import {
     FaChevronRight,
     FaSignInAlt,
     FaUserPlus,
+    FaSitemap,
+    FaCommentDots,
 } from 'react-icons/fa';
 
 interface NavItem {
@@ -61,6 +63,16 @@ const navItems: NavItem[] = [
             { label: 'Daftar Surat', href: '/surat-edaran/list', icon: null },
             { label: 'Buat Surat', href: '/surat-edaran/create', icon: null },
         ],
+    },
+    {
+        label: 'Kepengurusan',
+        href: '/kepengurusan',
+        icon: <FaSitemap size={20} />,
+    },
+    {
+        label: 'Kritik & Saran',
+        href: '/kritik-saran',
+        icon: <FaCommentDots size={20} />,
     },
     {
         label: 'Pengguna',

@@ -248,7 +248,7 @@ export default function Dashboard() {
                                             formatter={(value: unknown) => [`Rp ${Number(value).toLocaleString('id-ID')}`, '']}
                                             cursor={{ stroke: isDark ? '#ffffff20' : '#00000015', strokeWidth: 1 }}
                                         />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                         <Area
                                             type="monotone"
                                             dataKey="pemasukan"
@@ -314,7 +314,7 @@ export default function Dashboard() {
                                             }}
                                             cursor={{ fill: isDark ? '#ffffff08' : '#00000008' }}
                                         />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                         <Bar dataKey="selesai" name="Selesai" fill="url(#barSelesai)" radius={[6, 6, 0, 0]} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
                                         <Bar dataKey="dijadwalkan" name="Dijadwalkan" fill="url(#barDijadwalkan)" radius={[6, 6, 0, 0]} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" animationBegin={300} />
                                     </BarChart>
@@ -379,7 +379,7 @@ export default function Dashboard() {
                                             labelStyle={{ color: isDark ? '#fff' : '#111' }}
                                             formatter={(value: unknown) => [`Rp ${Number(value).toLocaleString('id-ID')}`, '']}
                                         />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>

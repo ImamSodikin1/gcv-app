@@ -110,7 +110,7 @@ export default function FinancialReports() {
                                         <XAxis dataKey="month" stroke={isDark ? '#9ca3af' : '#6b7280'} fontSize={12} axisLine={false} tickLine={false} />
                                         <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} fontSize={12} tickFormatter={(v) => `${(Number(v) / 1000000).toFixed(0)}jt`} axisLine={false} tickLine={false} />
                                         <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '12px', color: isDark ? '#fff' : '#111', boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)', padding: '12px 16px' }} formatter={(value: unknown) => formatCurrency(value)} cursor={{ fill: isDark ? '#ffffff08' : '#00000008' }} />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                         <Bar dataKey="pemasukan" name="Pemasukan" fill="url(#repBarIn)" radius={[6, 6, 0, 0]} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
                                         <Bar dataKey="pengeluaran" name="Pengeluaran" fill="url(#repBarOut)" radius={[6, 6, 0, 0]} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" animationBegin={300} />
                                     </BarChart>
@@ -139,7 +139,7 @@ export default function FinancialReports() {
                                             ))}
                                         </Pie>
                                         <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '12px', color: isDark ? '#fff' : '#111', boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)', padding: '12px 16px' }} itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }} labelStyle={{ color: isDark ? '#fff' : '#111' }} formatter={(value: unknown) => formatCurrency(value)} />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>

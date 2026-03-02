@@ -599,7 +599,7 @@ export default function PatrolSchedule() {
                                         <XAxis dataKey="block" stroke={isDark ? '#9ca3af' : '#6b7280'} fontSize={12} axisLine={false} tickLine={false} />
                                         <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} fontSize={12} axisLine={false} tickLine={false} />
                                         <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '12px', boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)', padding: '12px 16px' }} itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }} labelStyle={{ color: isDark ? '#fff' : '#111' }} cursor={{ fill: isDark ? '#ffffff08' : '#00000008' }} />
-                                        <Legend iconType="circle" />
+                                        <Legend iconType="circle" wrapperStyle={{ color: isDark ? '#d1d5db' : '#374151' }} />
                                         <Bar dataKey="selesai" name="Selesai" fill="url(#schBarDone)" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" />
                                         <Bar dataKey="dijadwalkan" name="Dijadwalkan" fill="url(#schBarSch)" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={200} />
                                         <Bar dataKey="dibatalkan" name="Dibatalkan" fill="url(#schBarCan)" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={400} />
