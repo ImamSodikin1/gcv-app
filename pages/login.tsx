@@ -2,23 +2,36 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { useTheme } from '@/context/ThemeContext';
-import { FaEnvelope, FaLock, FaSignInAlt } from 'react-icons/fa';
+import { useAuth } from '@/context/AuthContext';
+import { FaEnvelope, FaLock, FaSignInAlt, FaInfoCircle } from 'react-icons/fa';
 
 export default function LoginPage() {
     const { theme } = useTheme();
+    const { login, isLoggedIn } = useAuth();
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    // If already logged in, redirect
+    if (isLoggedIn) {
+        router.replace('/dashboard');
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
         setLoading(true);
-        // Simulasi login
-        setTimeout(() => {
-            setLoading(false);
-            alert('Login berhasil! (demo)');
-        }, 1500);
+        const result = await login(email, password);
+        setLoading(false);
+        if (result.success) {
+            router.push('/dashboard');
+        } else {
+            setError(result.message);
+        }
     };
 
     const isDark = theme === 'dark';
@@ -128,6 +141,17 @@ export default function LoginPage() {
                             </a>
                         </motion.div>
 
+                        {/* Error Message */}
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center"
+                            >
+                                {error}
+                            </motion.div>
+                        )}
+
                         {/* Submit */}
                         <motion.button
                             type="submit"
@@ -173,6 +197,24 @@ export default function LoginPage() {
                         <Link href="/dashboard" className={`text-sm ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'} transition-colors`}>
                             ← Kembali ke Dashboard
                         </Link>
+                    </motion.div>
+
+                    {/* Demo Account Info */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className={`mt-5 p-4 rounded-lg border ${isDark ? 'bg-blue-500/10 border-blue-400/20' : 'bg-blue-50 border-blue-200'}`}
+                    >
+                        <div className="flex items-center gap-2 mb-2">
+                            <FaInfoCircle className="text-blue-400" size={14} />
+                            <span className={`text-xs font-semibold ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>Akun Demo</span>
+                        </div>
+                        <div className={`text-xs space-y-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <p><span className="font-medium">Superadmin:</span> superadmin@perumahan.com / superadmin123</p>
+                            <p><span className="font-medium">Admin:</span> admin@perumahan.com / admin123</p>
+                            <p><span className="font-medium">Warga:</span> budi@gmail.com / user123</p>
+                        </div>
                     </motion.div>
                 </motion.div>
             </div>

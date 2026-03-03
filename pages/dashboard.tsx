@@ -5,9 +5,14 @@ import {
     FaFileAlt,
     FaUsers,
     FaArrowUp,
+    FaSignInAlt,
+    FaUserPlus,
 } from 'react-icons/fa';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { useDashboardData } from '@/lib/hooks';
 import {
     AreaChart,
     Area,
@@ -32,34 +37,6 @@ interface StatCard {
     bgColor: string;
 }
 
-// Data chart keuangan bulanan
-const monthlyFinanceData = [
-    { month: 'Sep', pemasukan: 12000000, pengeluaran: 7500000 },
-    { month: 'Okt', pemasukan: 13500000, pengeluaran: 8000000 },
-    { month: 'Nov', pemasukan: 11000000, pengeluaran: 9200000 },
-    { month: 'Des', pemasukan: 16000000, pengeluaran: 10500000 },
-    { month: 'Jan', pemasukan: 14000000, pengeluaran: 7800000 },
-    { month: 'Feb', pemasukan: 15000000, pengeluaran: 8500000 },
-];
-
-// Data chart ronda per blok
-const rondaPerBlockData = [
-    { block: 'Blok A', selesai: 8, dijadwalkan: 2 },
-    { block: 'Blok B', selesai: 6, dijadwalkan: 4 },
-    { block: 'Blok C', selesai: 7, dijadwalkan: 3 },
-    { block: 'Blok D', selesai: 5, dijadwalkan: 5 },
-    { block: 'Blok E', selesai: 9, dijadwalkan: 1 },
-];
-
-// Data pie chart kategori pengeluaran
-const expenseCategoryData = [
-    { name: 'Keamanan', value: 3500000, color: '#f472b6' },
-    { name: 'Maintenance', value: 2500000, color: '#818cf8' },
-    { name: 'Kebersihan', value: 1500000, color: '#34d399' },
-    { name: 'Listrik', value: 800000, color: '#fbbf24' },
-    { name: 'Lainnya', value: 200000, color: '#60a5fa' },
-];
-
 // Data aktivitas terbaru
 const recentActivities = [
     { title: 'Jadwal Ronda Diupdate', desc: 'Blok A - Shift malam', time: '2 jam lalu', color: 'from-pink-400 to-purple-400' },
@@ -68,35 +45,43 @@ const recentActivities = [
     { title: 'Pengguna Baru Terdaftar', desc: 'Ahmad - Blok C No.12', time: '1 hari lalu', color: 'from-yellow-400 to-orange-400' },
 ];
 
+const PIE_COLORS = ['#f472b6', '#818cf8', '#34d399', '#fbbf24', '#60a5fa'];
+
 export default function Dashboard() {
     const { theme } = useTheme();
+    const { isLoggedIn, user } = useAuth();
     const isDark = theme === 'dark';
+    const { data: dashData, loading: dashLoading, source: dashSource } = useDashboardData();
+
+    const monthlyFinanceData = dashData.monthlyFinance;
+    const rondaPerBlockData = dashData.rondaPerBlock;
+    const expenseCategoryData = dashData.expenseCategories.map((c, i) => ({ ...c, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
     const stats: StatCard[] = [
         {
             title: 'Total Ronda',
-            value: 24,
+            value: dashData.totalSchedules,
             icon: <FaShieldAlt size={32} />,
             color: 'text-blue-400',
             bgColor: 'from-blue-400/20 to-blue-500/20',
         },
         {
             title: 'Total Transaksi',
-            value: 156,
+            value: `Rp ${((dashData.totalPemasukan - dashData.totalPengeluaran) / 1000000).toFixed(0)}jt`,
             icon: <FaMoneyBillWave size={32} />,
             color: 'text-green-400',
             bgColor: 'from-green-400/20 to-emerald-500/20',
         },
         {
             title: 'Surat Edaran',
-            value: 12,
+            value: dashData.totalSuratEdaran,
             icon: <FaFileAlt size={32} />,
             color: 'text-purple-400',
             bgColor: 'from-purple-400/20 to-pink-500/20',
         },
         {
             title: 'Total Pengguna',
-            value: 87,
+            value: dashData.totalUsers,
             icon: <FaUsers size={32} />,
             color: 'text-pink-400',
             bgColor: 'from-pink-400/20 to-rose-500/20',
@@ -159,8 +144,70 @@ export default function Dashboard() {
                                 Dashboard
                             </span>
                         </h1>
-                        <p className={`text-lg ${textSub}`}>Selamat datang di Sistem Manajemen Perumahan</p>
+                        <p className={`text-lg ${textSub}`}>
+                            {isLoggedIn
+                                ? `Selamat datang, ${user?.name}!`
+                                : 'Selamat datang di Sistem Manajemen Perumahan'}
+                        </p>
+                        {dashLoading ? (
+                            <span className="text-xs text-blue-400 animate-pulse">Memuat data...</span>
+                        ) : (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${dashSource === 'supabase' ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                {dashSource === 'supabase' ? '● Live Data' : '● Demo Data'}
+                            </span>
+                        )}
                     </motion.div>
+
+                    {/* Registration Banner for non-logged-in users */}
+                    {!isLoggedIn && (
+                        <motion.div
+                            initial={{ y: 10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                            className={`mb-8 p-5 rounded-xl border backdrop-blur-md ${
+                                isDark
+                                    ? 'bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border-blue-400/20'
+                                    : 'bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-blue-200'
+                            }`}
+                        >
+                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                                <div className="flex-1">
+                                    <h3 className={`text-lg font-bold mb-1 ${textMain}`}>
+                                        Bergabung dengan Sistem Manajemen Perumahan
+                                    </h3>
+                                    <p className={`text-sm ${textSub}`}>
+                                        Daftar sebagai warga untuk mengakses fitur lengkap: jadwal ronda, laporan keuangan, surat edaran, dan lainnya.
+                                    </p>
+                                </div>
+                                <div className="flex gap-3 flex-shrink-0">
+                                    <Link href="/login">
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                                                isDark
+                                                    ? 'bg-white/10 text-gray-200 hover:bg-white/20'
+                                                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                                            }`}
+                                        >
+                                            <FaSignInAlt size={14} />
+                                            Login
+                                        </motion.button>
+                                    </Link>
+                                    <Link href="/register">
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-white text-sm font-semibold hover:shadow-lg hover:shadow-pink-500/30"
+                                        >
+                                            <FaUserPlus size={14} />
+                                            Daftar Sekarang
+                                        </motion.button>
+                                    </Link>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
 
                     {/* Stats Grid */}
                     <motion.div

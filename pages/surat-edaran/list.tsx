@@ -4,26 +4,21 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { useApiData, dummySuratEdaran } from '@/lib/hooks';
 
-const allCirculars = [
-    { id: '1', title: 'Pengumuman: Jadwal Pembersihan Ruang Hijau', date: '2026-03-01', author: 'Ketua RT', status: 'published', category: 'Pengumuman' },
-    { id: '2', title: 'Edaran: Kenaikan Iuran Bulanan Maret 2026', date: '2026-02-28', author: 'Bendahara', status: 'published', category: 'Keuangan' },
-    { id: '3', title: 'Undangan: Peraturan Keamanan Baru Perumahan', date: '2026-02-25', author: 'Koordinator Keamanan', status: 'draft', category: 'Keamanan' },
-    { id: '4', title: 'Info: Penutupan Jalan Sementara Blok B', date: '2026-02-20', author: 'Ketua RT', status: 'published', category: 'Pengumuman' },
-    { id: '5', title: 'Edaran: Jadwal Pemadaman Listrik', date: '2026-02-18', author: 'Sekretaris', status: 'published', category: 'Utilitas' },
-    { id: '6', title: 'Undangan: Rapat Warga Bulanan Maret', date: '2026-02-15', author: 'Ketua RT', status: 'draft', category: 'Pengumuman' },
-    { id: '7', title: 'Info: Program Penghijauan Lingkungan', date: '2026-02-10', author: 'Sie Lingkungan', status: 'published', category: 'Lingkungan' },
-    { id: '8', title: 'Edaran: Larangan Parkir di Jalur Utama', date: '2026-02-05', author: 'Koordinator Keamanan', status: 'published', category: 'Keamanan' },
-];
+type SuratEdaran = typeof dummySuratEdaran[number];
 
 export default function CircularList() {
     const { theme } = useTheme();
+    const { isAdmin } = useAuth();
     const isDark = theme === 'dark';
+    const { data: allCirculars } = useApiData<SuratEdaran>({ apiUrl: '/api/surat-edaran', dummyData: dummySuratEdaran, realtimeTables: ['surat_edaran'] });
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
 
     const filtered = allCirculars.filter((c) => {
-        const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) || c.author.toLowerCase().includes(search.toLowerCase());
+        const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) || (c.author || '').toLowerCase().includes(search.toLowerCase());
         const matchStatus = filterStatus === 'all' || c.status === filterStatus;
         return matchSearch && matchStatus;
     });
@@ -108,16 +103,18 @@ export default function CircularList() {
                                 <option value="draft" className="bg-gray-800">Draft</option>
                             </select>
                         </div>
-                        <Link href="/surat-edaran/create">
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-pink-500/50 transition-all"
-                            >
-                                <FaPlus size={14} />
-                                Buat Surat Edaran
-                            </motion.button>
-                        </Link>
+                        {isAdmin && (
+                            <Link href="/surat-edaran/create">
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-pink-500/50 transition-all"
+                                >
+                                    <FaPlus size={14} />
+                                    Buat Surat Edaran
+                                </motion.button>
+                            </Link>
+                        )}
                     </motion.div>
 
                     {/* Table */}

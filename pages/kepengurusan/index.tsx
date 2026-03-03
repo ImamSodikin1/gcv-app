@@ -6,8 +6,9 @@ import {
 } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useRealtimeRefresh } from '@/lib/realtime';
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Pengurus = {
@@ -199,6 +200,53 @@ export default function Kepengurusan() {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
     const [expandedMember, setExpandedMember] = useState<string | null>(null);
+    const [kepengurusanData, setKepengurusanData] = useState(strukturKepengurusan);
+    const [dataSource, setDataSource] = useState<'dummy' | 'supabase'>('dummy');
+
+    const fetchKepengurusan = useCallback(() => {
+        fetch('/api/kepengurusan')
+            .then(r => r.json())
+            .then(res => {
+                if (res.data?.length && res.source === 'supabase') {
+                    // Group flat DB rows by level → JajaranLevel[]
+                    const levelMap = new Map<number, Pengurus[]>();
+                    res.data.forEach((row: Record<string, unknown>) => {
+                        const lvl = (row.level as number) || 99;
+                        if (!levelMap.has(lvl)) levelMap.set(lvl, []);
+                        levelMap.get(lvl)!.push({
+                            id: row.id as string,
+                            name: row.name as string,
+                            jabatan: row.jabatan as string,
+                            houseNo: (row.house_no || row.houseNo || '') as string,
+                            block: row.block as string,
+                            gang: row.gang as string,
+                            phone: row.phone as string,
+                            email: row.email as string,
+                            foto: row.foto as string | undefined,
+                            periode: row.periode as string,
+                            tugas: Array.isArray(row.tugas) ? row.tugas as string[] : [],
+                        });
+                    });
+                    // Merge into existing levels (keep UI config like gradient, icon etc.)
+                    const merged = strukturKepengurusan.map(level => ({
+                        ...level,
+                        members: levelMap.get(level.level) || level.members,
+                    }));
+                    setKepengurusanData(merged);
+                    setDataSource('supabase');
+                }
+            })
+            .catch(() => { /* keep dummy */ });
+    }, []);
+
+    useEffect(() => { fetchKepengurusan(); }, [fetchKepengurusan]);
+
+    // Realtime subscription
+    useRealtimeRefresh({
+        tables: ['kepengurusan'],
+        refetch: fetchKepengurusan,
+        source: dataSource,
+    });
 
     const cardClass = isDark
         ? 'bg-gradient-to-br from-[#181926]/80 via-[#231b2e]/80 to-[#2d1e3a]/80 border-white/10'
@@ -223,7 +271,11 @@ export default function Kepengurusan() {
                             <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${textMain}`}>
                                 Struktur Kepengurusan
                             </h1>
-                            <p className={`text-xs mt-0.5 ${textMuted}`}>Hierarki dan susunan pengurus RT Perumahan</p>
+                            <p className={`text-xs mt-0.5 ${textMuted}`}>Hierarki dan susunan pengurus RT Perumahan
+                                <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full ${dataSource === 'supabase' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                    {dataSource === 'supabase' ? '● Live' : '● Demo'}
+                                </span>
+                            </p>
                         </div>
                     </div>
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border ${isDark ? 'border-amber-400/20 bg-amber-400/10 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
@@ -233,7 +285,7 @@ export default function Kepengurusan() {
 
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                    {strukturKepengurusan.map((level, i) => (
+                    {kepengurusanData.map((level, i) => (
                         <motion.div key={level.level} initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 + i * 0.05 }} whileHover={{ y: -2, scale: 1.02 }} className={`bg-gradient-to-br ${level.gradient} border ${level.borderColor} rounded-xl p-3.5 backdrop-blur-md cursor-pointer`}>
                             <div className="flex items-center gap-2 mb-1.5">
                                 <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${level.iconBg} flex items-center justify-center text-white`}>
@@ -257,10 +309,10 @@ export default function Kepengurusan() {
                         {/* ═══ Level 1: Ketua RT ═══ */}
                         <motion.div whileHover={{ scale: 1.04 }} className="px-6 py-3.5 rounded-xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-400/15 to-yellow-500/15 text-center shadow-lg">
                             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-white font-bold text-sm mx-auto mb-1.5 shadow">
-                                {strukturKepengurusan[0].members[0].name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                {kepengurusanData[0].members[0].name.split(' ').map(n => n[0]).slice(0, 2).join('')}
                             </div>
-                            <p className={`text-sm font-bold ${textMain}`}>{strukturKepengurusan[0].members[0].name}</p>
-                            <p className={`text-[10px] ${textSub}`}>{strukturKepengurusan[0].title}</p>
+                            <p className={`text-sm font-bold ${textMain}`}>{kepengurusanData[0].members[0].name}</p>
+                            <p className={`text-[10px] ${textSub}`}>{kepengurusanData[0].title}</p>
                         </motion.div>
 
                         {/* Vertical line down */}
@@ -269,8 +321,8 @@ export default function Kepengurusan() {
                         {/* ═══ Level 2: Sekretaris + Bendahara ═══ */}
                         <div className="flex justify-center">
                             {[
-                                { m: strukturKepengurusan[1].members[0], label: strukturKepengurusan[1].title, border: 'border-blue-400/40', bg: 'from-blue-400/15 to-cyan-500/15', avatar: 'from-blue-400 to-cyan-500' },
-                                { m: strukturKepengurusan[2].members[0], label: strukturKepengurusan[2].title, border: 'border-emerald-400/40', bg: 'from-emerald-400/15 to-green-500/15', avatar: 'from-emerald-400 to-green-500' },
+                                { m: kepengurusanData[1].members[0], label: kepengurusanData[1].title, border: 'border-blue-400/40', bg: 'from-blue-400/15 to-cyan-500/15', avatar: 'from-blue-400 to-cyan-500' },
+                                { m: kepengurusanData[2].members[0], label: kepengurusanData[2].title, border: 'border-emerald-400/40', bg: 'from-emerald-400/15 to-green-500/15', avatar: 'from-emerald-400 to-green-500' },
                             ].map((item, i, arr) => (
                                 <div key={item.m.id} className="flex flex-col items-center relative" style={{ minWidth: 170 }}>
                                     {/* Left half of horizontal connector */}
@@ -295,7 +347,7 @@ export default function Kepengurusan() {
 
                         {/* ═══ Level 3: Keamanan ═══ */}
                         <div className="flex justify-center">
-                            {strukturKepengurusan[3].members.map((m, i, arr) => (
+                            {kepengurusanData[3].members.map((m, i, arr) => (
                                 <div key={m.id} className="flex flex-col items-center relative" style={{ minWidth: 170 }}>
                                     {i > 0 && <div className={`absolute top-0 left-0 right-1/2 h-0.5 ${lineColor}`} />}
                                     {i < arr.length - 1 && <div className={`absolute top-0 left-1/2 right-0 h-0.5 ${lineColor}`} />}
@@ -316,7 +368,7 @@ export default function Kepengurusan() {
 
                         {/* ═══ Level 4: Koordinator Lapangan ═══ */}
                         <div className="flex justify-center">
-                            {strukturKepengurusan[4].members.map((m, i, arr) => (
+                            {kepengurusanData[4].members.map((m, i, arr) => (
                                 <div key={m.id} className="flex flex-col items-center relative" style={{ minWidth: 155 }}>
                                     {i > 0 && <div className={`absolute top-0 left-0 right-1/2 h-0.5 ${lineColor}`} />}
                                     {i < arr.length - 1 && <div className={`absolute top-0 left-1/2 right-0 h-0.5 ${lineColor}`} />}
@@ -341,7 +393,7 @@ export default function Kepengurusan() {
                     <div className={`absolute left-6 md:left-8 top-0 bottom-0 w-0.5 ${isDark ? 'bg-gradient-to-b from-amber-400/30 via-purple-400/20 to-transparent' : 'bg-gradient-to-b from-amber-300/60 via-purple-300/30 to-transparent'}`} />
 
                     <div className="space-y-5">
-                        {strukturKepengurusan.map((level, levelIdx) => (
+                        {kepengurusanData.map((level, levelIdx) => (
                             <motion.div key={level.level} initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 + levelIdx * 0.1 }}>
                                 {/* Level Header */}
                                 <div className="flex items-center gap-4 mb-3 relative">

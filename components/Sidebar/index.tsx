@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import {
     FaBars,
@@ -22,6 +23,9 @@ import {
     FaUserPlus,
     FaSitemap,
     FaCommentDots,
+    FaSignOutAlt,
+    FaUserCircle,
+    FaInfoCircle,
 } from 'react-icons/fa';
 
 interface NavItem {
@@ -29,6 +33,8 @@ interface NavItem {
     href: string;
     icon: React.ReactNode;
     submenu?: NavItem[];
+    requireAuth?: boolean;   // true = only show when logged in
+    adminOnly?: boolean;     // true = only show for admin role
 }
 
 const navItems: NavItem[] = [
@@ -41,48 +47,66 @@ const navItems: NavItem[] = [
         label: 'Ronda',
         href: '/ronda',
         icon: <FaShieldAlt size={20} />,
+        requireAuth: true,
         submenu: [
-            { label: 'Jadwal Ronda', href: '/ronda/schedule', icon: null },
-            { label: 'Laporan Ronda', href: '/ronda/reports', icon: null },
+            { label: 'Jadwal Ronda', href: '/ronda/schedule', icon: null, requireAuth: true },
+            { label: 'Laporan Ronda', href: '/ronda/reports', icon: null, requireAuth: true },
         ],
     },
     {
         label: 'Keuangan',
         href: '/keuangan',
         icon: <FaMoneyBillWave size={20} />,
+        requireAuth: true,
         submenu: [
-            { label: 'Transaksi', href: '/keuangan/transactions', icon: null },
-            { label: 'Laporan', href: '/keuangan/reports', icon: null },
+            { label: 'Transaksi', href: '/keuangan/transactions', icon: null, requireAuth: true },
+            { label: 'Laporan', href: '/keuangan/reports', icon: null, requireAuth: true },
         ],
     },
     {
         label: 'Surat Edaran',
         href: '/surat-edaran',
         icon: <FaFileAlt size={20} />,
+        requireAuth: true,
         submenu: [
-            { label: 'Daftar Surat', href: '/surat-edaran/list', icon: null },
-            { label: 'Buat Surat', href: '/surat-edaran/create', icon: null },
+            { label: 'Daftar Surat', href: '/surat-edaran/list', icon: null, requireAuth: true },
+            { label: 'Buat Surat', href: '/surat-edaran/create', icon: null, adminOnly: true },
         ],
     },
     {
         label: 'Kepengurusan',
         href: '/kepengurusan',
         icon: <FaSitemap size={20} />,
+        requireAuth: true,
     },
     {
         label: 'Kritik & Saran',
         href: '/kritik-saran',
         icon: <FaCommentDots size={20} />,
+        requireAuth: true,
     },
     {
         label: 'Pengguna',
         href: '/pengguna',
         icon: <FaUsers size={20} />,
+        adminOnly: true,
+    },
+    {
+        label: 'Pendataan Warga',
+        href: '/pendataan',
+        icon: <FaInfoCircle size={20} />,
+        adminOnly: true,
+        submenu: [
+            { label: 'Dashboard', href: '/pendataan', icon: null, adminOnly: true },
+            { label: 'Kartu Keluarga', href: '/pendataan/kartu-keluarga', icon: null, adminOnly: true },
+            { label: 'Data Penduduk', href: '/pendataan/penduduk', icon: null, adminOnly: true },
+        ],
     },
     {
         label: 'Pengaturan',
         href: '/settings',
         icon: <FaCog size={20} />,
+        requireAuth: true,
     },
 ];
 
@@ -92,6 +116,33 @@ export default function Sidebar() {
     const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
     const router = useRouter();
     const { theme } = useTheme();
+    const { user, isLoggedIn, isAdmin, logout } = useAuth();
+
+    // Filter nav items based on auth state
+    const filteredNavItems = useMemo(() => {
+        return navItems
+            .filter(item => {
+                if (item.adminOnly && !isAdmin) return false;
+                if (item.requireAuth && !isLoggedIn) return false;
+                return true;
+            })
+            .map(item => {
+                if (!item.submenu) return item;
+                return {
+                    ...item,
+                    submenu: item.submenu.filter(sub => {
+                        if (sub.adminOnly && !isAdmin) return false;
+                        if (sub.requireAuth && !isLoggedIn) return false;
+                        return true;
+                    }),
+                };
+            });
+    }, [isLoggedIn, isAdmin]);
+
+    const handleLogout = () => {
+        logout();
+        router.push('/dashboard');
+    };
 
     const toggleSubmenu = (label: string) => {
         const newExpanded = new Set(expandedItems);
@@ -181,7 +232,7 @@ export default function Sidebar() {
                         <ThemeSwitcher />
                     </div>
                 )}
-                {navItems.map((item, index) => {
+                {filteredNavItems.map((item, index) => {
                     const isItemActive = isActive(item.href);
                     const hasSubmenu = item.submenu && item.submenu.length > 0;
                     const isExpanded = expandedItems.has(item.label);
@@ -279,39 +330,116 @@ export default function Sidebar() {
 
             {/* Footer Section */}
             <div className={`border-t ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'} ${collapsed ? 'p-2 space-y-2' : 'p-4 space-y-3'}`}>
-                {/* Login / Register */}
-                {collapsed ? (
-                    <div className="flex flex-col items-center gap-2">
-                        <Link href="/login">
-                            <div className={`p-2.5 rounded-lg transition-all ${theme === 'dark' ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} title="Login">
-                                <FaSignInAlt size={16} />
-                            </div>
-                        </Link>
-                        <Link href="/register">
-                            <div className="p-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-white" title="Register">
-                                <FaUserPlus size={16} />
-                            </div>
-                        </Link>
-                    </div>
-                ) : (
-                    <div className="flex gap-2">
-                        <Link href="/login" className="flex-1">
-                            <div className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                {/* Not logged in: show info + Login/Register */}
+                {!isLoggedIn ? (
+                    <>
+                        {/* Info banner - only when expanded */}
+                        {!collapsed && (
+                            <div className={`rounded-lg p-3 border ${
                                 theme === 'dark'
-                                    ? 'bg-white/10 text-gray-200 hover:bg-white/20'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    ? 'bg-blue-500/10 border-blue-400/20'
+                                    : 'bg-blue-50 border-blue-200'
                             }`}>
-                                <FaSignInAlt size={14} />
-                                <span>Login</span>
+                                <div className="flex items-start gap-2">
+                                    <FaInfoCircle className="text-blue-400 mt-0.5 flex-shrink-0" size={14} />
+                                    <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        Login atau daftar untuk mengakses semua fitur sistem manajemen perumahan.
+                                    </p>
+                                </div>
                             </div>
-                        </Link>
-                        <Link href="/register" className="flex-1">
-                            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-white text-sm font-medium">
-                                <FaUserPlus size={14} />
-                                <span>Register</span>
+                        )}
+                        {collapsed ? (
+                            <div className="flex flex-col items-center gap-2">
+                                <Link href="/login">
+                                    <div className={`p-2.5 rounded-lg transition-all ${theme === 'dark' ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} title="Login">
+                                        <FaSignInAlt size={16} />
+                                    </div>
+                                </Link>
+                                <Link href="/register">
+                                    <div className="p-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-white" title="Register">
+                                        <FaUserPlus size={16} />
+                                    </div>
+                                </Link>
                             </div>
-                        </Link>
-                    </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <Link href="/login" className="flex-1">
+                                    <div className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                        theme === 'dark'
+                                            ? 'bg-white/10 text-gray-200 hover:bg-white/20'
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}>
+                                        <FaSignInAlt size={14} />
+                                        <span>Login</span>
+                                    </div>
+                                </Link>
+                                <Link href="/register" className="flex-1">
+                                    <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-white text-sm font-medium">
+                                        <FaUserPlus size={14} />
+                                        <span>Register</span>
+                                    </div>
+                                </Link>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    /* Logged in: show user info + logout */
+                    <>
+                        {collapsed ? (
+                            <div className="flex flex-col items-center gap-2">
+                                <div className={`p-2.5 rounded-full ${
+                                    isAdmin
+                                        ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+                                        : 'bg-gradient-to-r from-blue-400 to-purple-400'
+                                } text-white`} title={`${user?.name} (${user?.role})`}>
+                                    <FaUserCircle size={16} />
+                                </div>
+                                <button
+                                    onClick={handleLogout}
+                                    className={`p-2.5 rounded-lg transition-all ${theme === 'dark' ? 'bg-white/10 text-red-400 hover:bg-red-500/20' : 'bg-gray-200 text-red-500 hover:bg-red-100'}`}
+                                    title="Logout"
+                                >
+                                    <FaSignOutAlt size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                                    theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'
+                                }`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                        isAdmin
+                                            ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+                                            : 'bg-gradient-to-r from-blue-400 to-purple-400'
+                                    } text-white`}>
+                                        <FaUserCircle size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
+                                        <p className={`text-xs truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
+                                        <span className={`inline-block text-[10px] mt-0.5 px-2 py-0.5 rounded-full font-medium ${
+                                            isAdmin
+                                                ? 'bg-amber-500/20 text-amber-400'
+                                                : 'bg-blue-500/20 text-blue-400'
+                                        }`}>
+                                            {isAdmin ? 'Admin' : 'Warga'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleLogout}
+                                    className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                        theme === 'dark'
+                                            ? 'bg-white/10 text-red-400 hover:bg-red-500/20'
+                                            : 'bg-gray-200 text-red-500 hover:bg-red-100'
+                                    }`}
+                                >
+                                    <FaSignOutAlt size={14} />
+                                    <span>Logout</span>
+                                </button>
+                            </>
+                        )}
+                    </>
                 )}
 
                 {/* Version Info */}

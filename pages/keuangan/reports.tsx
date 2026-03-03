@@ -2,7 +2,9 @@ import { motion } from 'framer-motion';
 import { FaArrowLeft, FaChartBar, FaWallet, FaBalanceScale } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import {
     BarChart,
     Bar,
@@ -17,7 +19,7 @@ import {
     Cell,
 } from 'recharts';
 
-const monthlyData = [
+const defaultMonthlyData = [
     { month: 'Sep', pemasukan: 12000000, pengeluaran: 8500000 },
     { month: 'Okt', pemasukan: 13500000, pengeluaran: 9000000 },
     { month: 'Nov', pemasukan: 11000000, pengeluaran: 10500000 },
@@ -26,7 +28,7 @@ const monthlyData = [
     { month: 'Feb', pemasukan: 12500000, pengeluaran: 9500000 },
 ];
 
-const categoryData = [
+const defaultCategoryData = [
     { name: 'Iuran Bulanan', value: 45000000 },
     { name: 'Keamanan', value: 12000000 },
     { name: 'Kebersihan', value: 8000000 },
@@ -43,6 +45,33 @@ function formatCurrency(value: unknown) {
 export default function FinancialReports() {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
+    const [monthlyData, setMonthlyData] = useState(defaultMonthlyData);
+    const [categoryData, setCategoryData] = useState(defaultCategoryData);
+    const [source, setSource] = useState<'dummy' | 'supabase'>('dummy');
+
+    const fetchReportData = useCallback(() => {
+        fetch('/api/dashboard')
+            .then(r => r.json())
+            .then(res => {
+                if (res.data?.monthlyFinance?.length) {
+                    setMonthlyData(res.data.monthlyFinance);
+                }
+                if (res.data?.expenseCategories?.length) {
+                    setCategoryData(res.data.expenseCategories);
+                }
+                if (res.source === 'supabase') setSource('supabase');
+            })
+            .catch(() => { /* keep defaults */ });
+    }, []);
+
+    useEffect(() => { fetchReportData(); }, [fetchReportData]);
+
+    // Realtime subscription for transaksi changes
+    useRealtimeRefresh({
+        tables: ['transaksi'],
+        refetch: fetchReportData,
+        source,
+    });
 
     const cardClass = isDark
         ? 'bg-gradient-to-br from-[#181926]/80 via-[#231b2e]/80 to-[#2d1e3a]/80 border-white/10'
@@ -67,17 +96,25 @@ export default function FinancialReports() {
                         </Link>
                         <div>
                             <h1 className={`text-4xl font-bold ${textMain}`}>Laporan Keuangan</h1>
-                            <p className={textSub}>Ringkasan keuangan perumahan 6 bulan terakhir</p>
+                            <p className={textSub}>Ringkasan keuangan perumahan 6 bulan terakhir
+                                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${source === 'supabase' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                    {source === 'supabase' ? '● Live' : '● Demo'}
+                                </span>
+                            </p>
                         </div>
                     </motion.div>
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-                        {[
-                            { label: 'Total Pemasukan', value: formatCurrency(78000000), color: 'text-emerald-400', bg: 'from-emerald-400/20 to-green-500/20', icon: <FaWallet /> },
-                            { label: 'Total Pengeluaran', value: formatCurrency(57500000), color: 'text-red-400', bg: 'from-red-400/20 to-rose-500/20', icon: <FaChartBar /> },
-                            { label: 'Saldo', value: formatCurrency(20500000), color: 'text-blue-400', bg: 'from-blue-400/20 to-indigo-500/20', icon: <FaBalanceScale /> },
-                        ].map((c, i) => (
+                        {(() => {
+                            const totalIn = monthlyData.reduce((s, r) => s + r.pemasukan, 0);
+                            const totalOut = monthlyData.reduce((s, r) => s + r.pengeluaran, 0);
+                            return [
+                                { label: 'Total Pemasukan', value: formatCurrency(totalIn), color: 'text-emerald-400', bg: 'from-emerald-400/20 to-green-500/20', icon: <FaWallet /> },
+                                { label: 'Total Pengeluaran', value: formatCurrency(totalOut), color: 'text-red-400', bg: 'from-red-400/20 to-rose-500/20', icon: <FaChartBar /> },
+                                { label: 'Saldo', value: formatCurrency(totalIn - totalOut), color: 'text-blue-400', bg: 'from-blue-400/20 to-indigo-500/20', icon: <FaBalanceScale /> },
+                            ];
+                        })().map((c, i) => (
                             <motion.div key={i} whileHover={{ y: -3 }} className={`bg-gradient-to-br ${c.bg} border ${isDark ? 'border-white/10' : 'border-gray-200'} rounded-xl p-5`}>
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className={c.color}>{c.icon}</span>

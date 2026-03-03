@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { FaEnvelope, FaLock, FaUser, FaUserPlus, FaPhone } from 'react-icons/fa';
 
 export default function RegisterPage() {
     const { theme } = useTheme();
+    const { register, isLoggedIn } = useAuth();
+    const router = useRouter();
     const [form, setForm] = useState({
         name: '',
         email: '',
@@ -15,6 +19,13 @@ export default function RegisterPage() {
         confirmPassword: '',
     });
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+
+    // If already logged in, redirect
+    if (isLoggedIn) {
+        router.replace('/dashboard');
+    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -22,15 +33,30 @@ export default function RegisterPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        setSuccess('');
         if (form.password !== form.confirmPassword) {
-            alert('Password tidak cocok!');
+            setError('Password tidak cocok!');
+            return;
+        }
+        if (form.password.length < 6) {
+            setError('Password minimal 6 karakter!');
             return;
         }
         setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
-            alert('Registrasi berhasil! (demo)');
-        }, 1500);
+        const result = await register({
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            password: form.password,
+        });
+        setLoading(false);
+        if (result.success) {
+            setSuccess(result.message);
+            setTimeout(() => router.push('/login'), 1500);
+        } else {
+            setError(result.message);
+        }
     };
 
     const isDark = theme === 'dark';
@@ -147,6 +173,26 @@ export default function RegisterPage() {
                                 </div>
                             </motion.div>
                         ))}
+
+                        {/* Error / Success Message */}
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center"
+                            >
+                                {error}
+                            </motion.div>
+                        )}
+                        {success && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm text-center"
+                            >
+                                {success}
+                            </motion.div>
+                        )}
 
                         {/* Submit */}
                         <motion.button

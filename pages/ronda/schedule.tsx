@@ -6,8 +6,10 @@ import {
 } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
     PieChart, Pie, Cell,
@@ -182,12 +184,64 @@ const emptyForm = {
 // ── Component ──────────────────────────────────────────────────────────
 export default function PatrolSchedule() {
     const { theme } = useTheme();
+    const { isAdmin } = useAuth();
     const isDark = theme === 'dark';
 
     const [search, setSearch] = useState('');
     const [filterBlock, setFilterBlock] = useState('all');
     const [filterGang, setFilterGang] = useState('all');
     const [schedules, setSchedules] = useState<Schedule[]>(initialSchedules);
+    const [dataSource, setDataSource] = useState<'dummy' | 'supabase'>('dummy');
+
+    // Fetch from API, fallback to initialSchedules
+    const fetchSchedules = useCallback(() => {
+        fetch('/api/ronda')
+            .then(r => r.json())
+            .then(res => {
+                if (res.data?.length) {
+                    // Map DB fields to component fields
+                    const mapped: Schedule[] = res.data.map((s: Record<string, unknown>) => ({
+                        id: s.id as string,
+                        date: s.date as string,
+                        block: s.block as string,
+                        gang: s.gang as string,
+                        shift: s.shift as string,
+                        coordinator: s.coordinator as string,
+                        coordinatorHouse: (s.coordinator_house || s.coordinatorHouse || '') as string,
+                        status: s.status as Schedule['status'],
+                        participants: Array.isArray(s.participants) ? (s.participants as Record<string, unknown>[]).map(p => ({
+                            id: p.id as string,
+                            name: p.name as string,
+                            houseNo: (p.house_no || p.houseNo || '') as string,
+                            gang: p.gang as string,
+                            block: p.block as string,
+                            response: p.response as Participant['response'],
+                            reason: p.reason as string | undefined,
+                        })) : [],
+                        reports: Array.isArray(s.reports) ? (s.reports as Record<string, unknown>[]).map(r => ({
+                            id: r.id as string,
+                            authorName: (r.author_name || r.authorName || '') as string,
+                            houseNo: (r.house_no || r.houseNo || '') as string,
+                            content: r.content as string,
+                            timestamp: r.timestamp as string,
+                            type: r.type as ScheduleReport['type'],
+                        })) : [],
+                    }));
+                    setSchedules(mapped);
+                    if (res.source === 'supabase') setDataSource('supabase');
+                }
+            })
+            .catch(() => { /* keep dummy */ });
+    }, []);
+
+    useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+
+    // Realtime subscription for ronda tables
+    useRealtimeRefresh({
+        tables: ['ronda_schedule', 'ronda_participant', 'ronda_report'],
+        refetch: fetchSchedules,
+        source: dataSource,
+    });
 
     // Modals
     const [showAddModal, setShowAddModal] = useState(false);
@@ -560,7 +614,11 @@ export default function PatrolSchedule() {
                         </Link>
                         <div>
                             <h1 className={`text-4xl font-bold ${textMain}`}>Jadwal Ronda</h1>
-                            <p className={textSub}>Kelola jadwal keamanan per blok &amp; gang</p>
+                            <p className={textSub}>Kelola jadwal keamanan per blok &amp; gang
+                                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${dataSource === 'supabase' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                    {dataSource === 'supabase' ? '● Live' : '● Demo'}
+                                </span>
+                            </p>
                         </div>
                     </motion.div>
 
@@ -964,9 +1022,11 @@ export default function PatrolSchedule() {
                                 <option value="Semua Gang" className={optionCls}>Gabungan</option>
                             </select>
                         </div>
-                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setForm(emptyForm); setSelectedCoordinator(null); setCoordinatorSearch(''); setSelectedParticipants([]); setParticipantSearch(''); setShowAddModal(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-pink-500/50 transition-all">
-                            <FaPlus size={14} /> Tambah Jadwal
-                        </motion.button>
+                        {isAdmin && (
+                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setForm(emptyForm); setSelectedCoordinator(null); setCoordinatorSearch(''); setSelectedParticipants([]); setParticipantSearch(''); setShowAddModal(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-pink-500/50 transition-all">
+                                <FaPlus size={14} /> Tambah Jadwal
+                            </motion.button>
+                        )}
                     </motion.div>
 
                     {/* Schedule List - Grouped by Block */}

@@ -8,8 +8,9 @@ import {
 } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useRealtimeRefresh } from '@/lib/realtime';
 
 // ── Types ──────────────────────────────────────────────────────────────
 type KritikSaran = {
@@ -114,12 +115,37 @@ export default function KritikSaranPage() {
     const isDark = theme === 'dark';
 
     const [data, setData] = useState<KritikSaran[]>(initialData);
+    const [dataSource, setDataSource] = useState<'dummy' | 'supabase'>('dummy');
     const [showForm, setShowForm] = useState(false);
     const [selectedItem, setSelectedItem] = useState<KritikSaran | null>(null);
     const [search, setSearch] = useState('');
     const [filterKategori, setFilterKategori] = useState('all');
     const [filterJenis, setFilterJenis] = useState<'all' | 'kritik' | 'saran'>('all');
     const [filterStatus, setFilterStatus] = useState('all');
+
+    // Fetch from API with dummy fallback
+    const fetchKritikSaran = useCallback(async () => {
+        try {
+            const res = await fetch('/api/kritik-saran');
+            const json = await res.json();
+            if (json.source === 'supabase' && json.data?.length > 0) {
+                setData(json.data.map((d: Record<string, unknown>) => ({
+                    ...d,
+                    houseNo: d.house_no || d.houseNo || '',
+                })));
+                setDataSource('supabase');
+            }
+        } catch { /* keep dummy */ }
+    }, []);
+
+    useEffect(() => { fetchKritikSaran(); }, [fetchKritikSaran]);
+
+    // Realtime subscription
+    useRealtimeRefresh({
+        tables: ['kritik_saran'],
+        refetch: fetchKritikSaran,
+        source: dataSource,
+    });
 
     // Form state
     const [form, setForm] = useState({

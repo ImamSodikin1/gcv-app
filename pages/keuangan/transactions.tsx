@@ -2,8 +2,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaArrowLeft, FaMoneyBillWave, FaSearch, FaFilter, FaPlus, FaTimes, FaEdit, FaTrash, FaArrowUp, FaArrowDown, FaCalendarAlt, FaTag } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { useApiData, dummyTransaksi } from '@/lib/hooks';
 import {
     BarChart,
     Bar,
@@ -14,17 +16,6 @@ import {
     ResponsiveContainer,
     Legend,
 } from 'recharts';
-
-const initialTransactions = [
-    { id: '1', date: '2026-03-01', type: 'Pemasukan', category: 'Iuran Bulanan', amount: 5000000, description: 'Iuran keamanan bulan Maret', status: 'approved' },
-    { id: '2', date: '2026-03-02', type: 'Pengeluaran', category: 'Maintenance', amount: 1500000, description: 'Perbaikan jalan utama', status: 'approved' },
-    { id: '3', date: '2026-03-03', type: 'Pemasukan', category: 'Iuran Bulanan', amount: 4800000, description: 'Iuran keamanan blok B', status: 'pending' },
-    { id: '4', date: '2026-02-28', type: 'Pengeluaran', category: 'Kebersihan', amount: 800000, description: 'Gaji petugas kebersihan', status: 'approved' },
-    { id: '5', date: '2026-02-25', type: 'Pemasukan', category: 'Denda', amount: 250000, description: 'Denda keterlambatan iuran', status: 'approved' },
-    { id: '6', date: '2026-02-20', type: 'Pengeluaran', category: 'Listrik', amount: 2300000, description: 'Tagihan listrik area umum', status: 'approved' },
-    { id: '7', date: '2026-02-15', type: 'Pemasukan', category: 'Iuran Bulanan', amount: 5200000, description: 'Iuran keamanan blok C', status: 'approved' },
-    { id: '8', date: '2026-02-10', type: 'Pengeluaran', category: 'Maintenance', amount: 3200000, description: 'Perbaikan pagar perumahan', status: 'pending' },
-];
 
 const chartData = [
     { month: 'Okt', pemasukan: 13500, pengeluaran: 8000 },
@@ -37,12 +28,18 @@ const chartData = [
 
 const emptyForm = { date: '', type: 'Pemasukan', category: 'Iuran Bulanan', amount: '', description: '', status: 'pending' };
 
+type Transaksi = typeof dummyTransaksi[number];
+
 export default function FinancialTransactions() {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
+    const { data: apiTransactions, source } = useApiData<Transaksi>({ apiUrl: '/api/transaksi', dummyData: dummyTransaksi, realtimeTables: ['transaksi'] });
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('all');
-    const [transactions, setTransactions] = useState(initialTransactions);
+    const [transactions, setTransactions] = useState(apiTransactions);
+
+    // Sync when API data arrives
+    useEffect(() => { setTransactions(apiTransactions); }, [apiTransactions]);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -51,14 +48,14 @@ export default function FinancialTransactions() {
     const [form, setForm] = useState(emptyForm);
     const [editId, setEditId] = useState<string | null>(null);
 
-    // Simulated admin role
-    const currentUserRole: 'admin' | 'warga' = 'admin';
-    const isAdmin = currentUserRole === 'admin';
+    // Role from AuthContext
+    const { isAdmin } = useAuth();
 
-    const filtered = transactions.filter((t) => {
+    const activeTransactions = source === 'supabase' ? apiTransactions : transactions;
+    const filtered = activeTransactions.filter((t) => {
         const matchSearch =
-            t.description.toLowerCase().includes(search.toLowerCase()) ||
-            t.category.toLowerCase().includes(search.toLowerCase());
+            (t.description || '').toLowerCase().includes(search.toLowerCase()) ||
+            (t.category || '').toLowerCase().includes(search.toLowerCase());
         const matchType = filterType === 'all' || t.type.toLowerCase() === filterType;
         return matchSearch && matchType;
     });
@@ -80,14 +77,17 @@ export default function FinancialTransactions() {
 
     const handleAdd = () => {
         if (!form.date || !form.description || !form.amount) return;
-        const newTx = {
+        const now = new Date().toISOString();
+        const newTx: Transaksi = {
             id: Date.now().toString(),
             date: form.date,
-            type: form.type,
+            type: form.type as Transaksi['type'],
             category: form.category,
             amount: Number(form.amount),
             description: form.description,
-            status: form.status,
+            status: form.status as Transaksi['status'],
+            created_at: now,
+            updated_at: now,
         };
         setTransactions([newTx, ...transactions]);
         setForm(emptyForm);
@@ -98,7 +98,7 @@ export default function FinancialTransactions() {
         if (!form.date || !form.description || !form.amount || !editId) return;
         setTransactions(transactions.map(t =>
             t.id === editId
-                ? { ...t, date: form.date, type: form.type, category: form.category, amount: Number(form.amount), description: form.description, status: form.status }
+                ? { ...t, date: form.date, type: form.type as Transaksi['type'], category: form.category, amount: Number(form.amount), description: form.description, status: form.status as Transaksi['status'], updated_at: new Date().toISOString() }
                 : t
         ));
         setForm(emptyForm);
@@ -111,7 +111,7 @@ export default function FinancialTransactions() {
         setShowDeleteConfirm(null);
     };
 
-    const openEdit = (t: typeof initialTransactions[0]) => {
+    const openEdit = (t: Transaksi) => {
         setEditId(t.id);
         setForm({ date: t.date, type: t.type, category: t.category, amount: t.amount.toString(), description: t.description, status: t.status });
         setShowEditModal(true);

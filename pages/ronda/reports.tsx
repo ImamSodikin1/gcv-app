@@ -6,8 +6,9 @@ import {
 } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -129,10 +130,60 @@ export default function RondaReports() {
 
     const [filterBlock, setFilterBlock] = useState('all');
     const [filterType, setFilterType] = useState<'all' | 'kejadian' | 'catatan'>('all');
+    const [scheduleData, setScheduleData] = useState<Schedule[]>(initialSchedules);
+    const [dataSource, setDataSource] = useState<'dummy' | 'supabase'>('dummy');
+
+    const fetchRondaData = useCallback(() => {
+        fetch('/api/ronda')
+            .then(r => r.json())
+            .then(res => {
+                if (res.data?.length) {
+                    const mapped: Schedule[] = res.data.map((s: Record<string, unknown>) => ({
+                        id: s.id as string,
+                        date: s.date as string,
+                        block: s.block as string,
+                        gang: s.gang as string,
+                        shift: s.shift as string,
+                        coordinator: s.coordinator as string,
+                        coordinatorHouse: (s.coordinator_house || s.coordinatorHouse || '') as string,
+                        status: s.status as Schedule['status'],
+                        participants: Array.isArray(s.participants) ? (s.participants as Record<string, unknown>[]).map(p => ({
+                            id: p.id as string,
+                            name: p.name as string,
+                            houseNo: (p.house_no || p.houseNo || '') as string,
+                            gang: p.gang as string,
+                            block: p.block as string,
+                            response: p.response as 'ikut' | 'tidak' | 'pending',
+                            reason: p.reason as string | undefined,
+                        })) : [],
+                        reports: Array.isArray(s.reports) ? (s.reports as Record<string, unknown>[]).map(r => ({
+                            id: r.id as string,
+                            authorName: (r.author_name || r.authorName || '') as string,
+                            houseNo: (r.house_no || r.houseNo || '') as string,
+                            content: r.content as string,
+                            timestamp: r.timestamp as string,
+                            type: r.type as 'kejadian' | 'catatan',
+                        })) : [],
+                    }));
+                    setScheduleData(mapped);
+                    if (res.source === 'supabase') setDataSource('supabase');
+                }
+            })
+            .catch(() => { /* keep dummy */ });
+    }, []);
+
+    useEffect(() => { fetchRondaData(); }, [fetchRondaData]);
+
+    // Realtime subscription for ronda tables
+    useRealtimeRefresh({
+        tables: ['ronda_schedule', 'ronda_report'],
+        refetch: fetchRondaData,
+        source: dataSource,
+    });
 
     // ── Computed Stats ─────────────────────────────────────────────
     const stats = useMemo(() => {
-        const schedules = initialSchedules;
+        const schedules = scheduleData;
 
         const allReports = schedules.flatMap(s => s.reports.map(r => ({
             ...r,
@@ -239,7 +290,11 @@ export default function RondaReports() {
                             <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${textMain}`}>
                                 Laporan Ronda
                             </h1>
-                            <p className={`text-xs mt-0.5 ${textMuted}`}>Ringkasan hasil ronda, kejadian, dan statistik lokasi</p>
+                            <p className={`text-xs mt-0.5 ${textMuted}`}>Ringkasan hasil ronda, kejadian, dan statistik lokasi
+                                <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full ${dataSource === 'supabase' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                    {dataSource === 'supabase' ? '● Live' : '● Demo'}
+                                </span>
+                            </p>
                         </div>
                     </div>
                     <Link href="/ronda/schedule" className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition ${isDark ? 'border-white/10 bg-white/5 hover:bg-white/10 text-white' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'}`}>

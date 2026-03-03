@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaArrowLeft, FaPaperPlane, FaImage } from 'react-icons/fa';
+import { FaArrowLeft, FaPaperPlane, FaImage, FaLock } from 'react-icons/fa';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CreateSuratEdaran() {
     const { theme } = useTheme();
+    const { isAdmin, isLoggedIn } = useAuth();
     const isDark = theme === 'dark';
 
     const [form, setForm] = useState({
@@ -35,6 +37,27 @@ export default function CreateSuratEdaran() {
         e.preventDefault();
         alert('Surat edaran berhasil dibuat! (Demo)');
     };
+
+    // Non-admin guard
+    if (!isLoggedIn || !isAdmin) {
+        return (
+            <>
+                <Head><title>Akses Ditolak - Sistem Manajemen Perumahan</title></Head>
+                <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gray-50'}`}>
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`text-center p-8 rounded-2xl border ${isDark ? 'bg-[#181926]/80 border-white/10' : 'bg-white border-gray-200'}`}>
+                        <FaLock className="text-red-400 mx-auto mb-4" size={48} />
+                        <h1 className={`text-2xl font-bold mb-2 ${textMain}`}>Akses Ditolak</h1>
+                        <p className={`${textSub} mb-6`}>Hanya admin yang dapat membuat surat edaran.</p>
+                        <Link href="/surat-edaran/list">
+                            <motion.button whileHover={{ scale: 1.05 }} className="px-6 py-2.5 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-semibold rounded-lg">
+                                Kembali ke Daftar Surat
+                            </motion.button>
+                        </Link>
+                    </motion.div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
