@@ -256,7 +256,7 @@ export default function RondaReports() {
             totalReports, totalKejadian, totalCatatan,
             kejadianTypes, recentReports, kejadianLocations, reportsPerBlock,
         };
-    }, []);
+    }, [scheduleData]);
 
     // Theme classes
     const cardClass = isDark

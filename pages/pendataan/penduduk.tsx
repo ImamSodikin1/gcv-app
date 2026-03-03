@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiInfo, FiDownload } from 'react-icons/fi';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -44,12 +44,7 @@ export default function PendudukPage() {
     pendidikan_terakhir: 'SMA' as 'Tidak Sekolah' | 'SD' | 'SMP' | 'SMA' | 'Diploma' | 'S1' | 'S2' | 'S3',
   });
 
-  useEffect(() => {
-    fetchData();
-    fetchKKList();
-  }, [page, search]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -74,13 +69,18 @@ export default function PendudukPage() {
       setData(result.data);
       setTotal(result.total);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching data:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, page, limit, search]);
+
+  useEffect(() => {
+    fetchData();
+    fetchKKList();
+  }, [fetchData]);
 
   const fetchKKList = async () => {
     if (!user) return;
@@ -157,8 +157,8 @@ export default function PendudukPage() {
         editingId ? 'Berhasil Diperbarui!' : 'Berhasil Ditambahkan!',
         editingId ? 'Data Penduduk berhasil diperbarui' : 'Data Penduduk berhasil ditambahkan'
       );
-    } catch (err: any) {
-      swal.error('Gagal Menyimpan', err.message);
+    } catch (err: unknown) {
+      swal.error('Gagal Menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
     }
   };
 
@@ -207,8 +207,8 @@ export default function PendudukPage() {
 
         fetchData();
         swal.success('Berhasil Dihapus!', 'Data Penduduk berhasil dihapus');
-      } catch (err: any) {
-        swal.error('Gagal Menghapus', err.message);
+      } catch (err: unknown) {
+        swal.error('Gagal Menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
       }
     }
   };
@@ -383,16 +383,7 @@ export default function PendudukPage() {
     setShowAddForm(false);
   };
 
-  const calculateAge = (birthDate: string) => {
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
+
 
   const totalPages = Math.ceil(total / limit);
 
@@ -495,7 +486,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.jenis_kelamin}
-                onChange={(e) => setFormData({ ...formData, jenis_kelamin: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, jenis_kelamin: e.target.value as 'Laki-laki' | 'Perempuan' })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Laki-laki">Laki-laki</option>
@@ -520,7 +511,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.status_perkawinan}
-                onChange={(e) => setFormData({ ...formData, status_perkawinan: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status_perkawinan: e.target.value as typeof formData.status_perkawinan })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Belum Kawin">Belum Kawin</option>
@@ -531,7 +522,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.agama}
-                onChange={(e) => setFormData({ ...formData, agama: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, agama: e.target.value as typeof formData.agama })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Islam">Islam</option>
@@ -544,7 +535,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.hubungan_keluarga}
-                onChange={(e) => setFormData({ ...formData, hubungan_keluarga: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, hubungan_keluarga: e.target.value as typeof formData.hubungan_keluarga })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Kepala Keluarga">Kepala Keluarga</option>
@@ -587,7 +578,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.status_pekerjaan}
-                onChange={(e) => setFormData({ ...formData, status_pekerjaan: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status_pekerjaan: e.target.value as typeof formData.status_pekerjaan })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Bekerja">Bekerja</option>
@@ -598,7 +589,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.status_kk}
-                onChange={(e) => setFormData({ ...formData, status_kk: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status_kk: e.target.value as typeof formData.status_kk })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Anggota KK Jaya Sampurna">Anggota KK Jaya Sampurna</option>
@@ -608,7 +599,7 @@ export default function PendudukPage() {
 
               <select
                 value={formData.pendidikan_terakhir}
-                onChange={(e) => setFormData({ ...formData, pendidikan_terakhir: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, pendidikan_terakhir: e.target.value as typeof formData.pendidikan_terakhir })}
                 className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="Tidak Sekolah">Tidak Sekolah</option>

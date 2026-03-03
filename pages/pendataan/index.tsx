@@ -51,9 +51,9 @@ export default function PendataanDashboard() {
 
       setDashboardData(result.data);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching dashboard:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setLoading(false);
     }
@@ -378,7 +378,8 @@ export default function PendataanDashboard() {
                       stroke: isDark ? '#9ca3af' : '#4b5563',
                       strokeWidth: 1.5
                     }}
-                    label={(entry: any) => {
+                    label={(entry: { value?: number; payload?: { pendidikan?: string } }) => {
+                      if (!entry.value || !entry.payload?.pendidikan) return '';
                       const percent = ((entry.value / pendidikan.reduce((sum, item) => sum + item.jumlah, 0)) * 100).toFixed(0);
                       return `${entry.payload.pendidikan}: ${percent}%`;
                     }}
