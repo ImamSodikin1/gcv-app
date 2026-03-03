@@ -2,6 +2,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { Penduduk, PendudukForm, ApiResponse, PaginatedResponse } from '@/interface/pendataan';
+import { getAuthUser, isAdmin } from '@/lib/api-auth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -12,7 +13,23 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Penduduk> | PaginatedResponse<Penduduk>>
 ) {
-  // GET - List semua Penduduk dengan pagination, filter & search
+  // Get authenticated user
+  const authUser = await getAuthUser(req);
+  
+  if (!authUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized - Please login first',
+      data: [],
+      page: 1,
+      limit: 10,
+      total: 0,
+    } as any);
+  }
+
+  const userIsAdmin = isAdmin(authUser);
+
+  // GET - List Penduduk dengan pagination, filter & search
   if (req.method === 'GET') {
     try {
       const {
@@ -29,9 +46,15 @@ export default async function handler(
       const limitNum = parseInt(limit as string) || 10;
       const offset = (pageNum - 1) * limitNum;
 
-      console.log(`👥 Fetching Penduduk... Page: ${pageNum}, Limit: ${limitNum}`);
+      console.log(`👥 Fetching Penduduk... Page: ${pageNum}, Limit: ${limitNum}, User: ${authUser.email}, Role: ${authUser.role}`);
 
       let query = supabase.from('penduduk').select('*', { count: 'exact' });
+
+      // User biasa hanya bisa lihat data yang dia buat
+      if (!userIsAdmin) {
+        query = query.eq('created_by', authUser.id);
+        console.log(`🔒 Filtering by created_by: ${authUser.id}`);
+      }
 
       // Filter untuk Kartu Keluarga
       if (kk_id && kk_id !== '') {
@@ -114,7 +137,7 @@ export default async function handler(
         });
       }
 
-      console.log('📝 Creating new Penduduk:', form.nik);
+      console.log('📝 Creating new Penduduk:', form.nik, 'by user:', authUser.email);
 
       // Check if Penduduk already exists
       const { data: existing } = await supabase
@@ -142,7 +165,10 @@ export default async function handler(
 
       const { data: newPenduduk, error: insertError } = await supabase
         .from('penduduk')
-        .insert(form)
+        .insert({
+          ...form,
+          created_by: authUser.id, // Set created_by to current user
+        })
         .select()
         .single();
 
@@ -180,7 +206,29 @@ export default async function handler(
         });
       }
 
-      console.log('📝 Updating Penduduk:', id);
+      console.log('📝 Updating Penduduk:', id, 'by user:', authUser.email);
+
+      // Check if Penduduk exists and user has permission
+      const { data: existingPenduduk, error: checkError } = await supabase
+        .from('penduduk')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingPenduduk) {
+        return res.status(404).json({
+          success: false,
+          message: 'Penduduk tidak ditemukan',
+        });
+      }
+
+      // User biasa hanya bisa update data mereka sendiri
+      if (!userIsAdmin && existingPenduduk.created_by !== authUser.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki izin untuk mengubah data ini',
+        });
+      }
 
       const { data: updated, error: updateError } = await supabase
         .from('penduduk')
@@ -223,7 +271,29 @@ export default async function handler(
         });
       }
 
-      console.log('🗑️ Deleting Penduduk:', id);
+      console.log('🗑️ Deleting Penduduk:', id, 'by user:', authUser.email);
+
+      // Check if Penduduk exists and user has permission
+      const { data: existingPenduduk, error: checkError } = await supabase
+        .from('penduduk')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingPenduduk) {
+        return res.status(404).json({
+          success: false,
+          message: 'Penduduk tidak ditemukan',
+        });
+      }
+
+      // User biasa hanya bisa delete data mereka sendiri
+      if (!userIsAdmin && existingPenduduk.created_by !== authUser.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki izin untuk menghapus data ini',
+        });
+      }
 
       const { error: deleteError } = await supabase
         .from('penduduk')

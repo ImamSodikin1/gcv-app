@@ -2,6 +2,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { KartuKeluarga, KartuKeluargaForm, ApiResponse, PaginatedResponse } from '@/interface/pendataan';
+import { getAuthUser, isAdmin } from '@/lib/api-auth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -12,7 +13,23 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<KartuKeluarga> | PaginatedResponse<KartuKeluarga>>
 ) {
-  // GET - List semua Kartu Keluarga dengan pagination & filter
+  // Get authenticated user
+  const authUser = await getAuthUser(req);
+  
+  if (!authUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized - Please login first',
+      data: [],
+      page: 1,
+      limit: 10,
+      total: 0,
+    } as any);
+  }
+
+  const userIsAdmin = isAdmin(authUser);
+
+  // GET - List Kartu Keluarga dengan pagination & filter
   if (req.method === 'GET') {
     try {
       const { page = 1, limit = 10, rt, rw, search } = req.query;
@@ -20,9 +37,15 @@ export default async function handler(
       const limitNum = parseInt(limit as string) || 10;
       const offset = (pageNum - 1) * limitNum;
 
-      console.log(`📋 Fetching KK... Page: ${pageNum}, Limit: ${limitNum}`);
+      console.log(`📋 Fetching KK... Page: ${pageNum}, Limit: ${limitNum}, User: ${authUser.email}, Role: ${authUser.role}`);
 
       let query = supabase.from('kartu_keluarga').select('*', { count: 'exact' });
+
+      // User biasa hanya bisa lihat data yang dia buat
+      if (!userIsAdmin) {
+        query = query.eq('created_by', authUser.id);
+        console.log(`🔒 Filtering by created_by: ${authUser.id}`);
+      }
 
       // Filter untuk RT
       if (rt && rt !== '') {
@@ -90,7 +113,7 @@ export default async function handler(
         });
       }
 
-      console.log('📝 Creating new KK:', form.no_kk);
+      console.log('📝 Creating new KK:', form.no_kk, 'by user:', authUser.email);
 
       // Check if KK already exists
       const { data: existing } = await supabase
@@ -112,6 +135,7 @@ export default async function handler(
         .insert({
           ...form,
           status_kk: form.status_kk || 'aktif',
+          created_by: authUser.id, // Set created_by to current user
         })
         .select()
         .single();
@@ -150,7 +174,29 @@ export default async function handler(
         });
       }
 
-      console.log('📝 Updating KK:', id);
+      console.log('📝 Updating KK:', id, 'by user:', authUser.email);
+
+      // Check if KK exists and user has permission
+      const { data: existingKK, error: checkError } = await supabase
+        .from('kartu_keluarga')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingKK) {
+        return res.status(404).json({
+          success: false,
+          message: 'Kartu Keluarga tidak ditemukan',
+        });
+      }
+
+      // User biasa hanya bisa update data mereka sendiri
+      if (!userIsAdmin && existingKK.created_by !== authUser.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki izin untuk mengubah data ini',
+        });
+      }
 
       const { data: updated, error: updateError } = await supabase
         .from('kartu_keluarga')
@@ -193,7 +239,29 @@ export default async function handler(
         });
       }
 
-      console.log('🗑️ Deleting KK:', id);
+      console.log('🗑️ Deleting KK:', id, 'by user:', authUser.email);
+
+      // Check if KK exists and user has permission
+      const { data: existingKK, error: checkError } = await supabase
+        .from('kartu_keluarga')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingKK) {
+        return res.status(404).json({
+          success: false,
+          message: 'Kartu Keluarga tidak ditemukan',
+        });
+      }
+
+      // User biasa hanya bisa delete data mereka sendiri
+      if (!userIsAdmin && existingKK.created_by !== authUser.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki izin untuk menghapus data ini',
+        });
+      }
 
       // Check if there are any anggota in this KK
       const { data: members } = await supabase

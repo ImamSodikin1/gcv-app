@@ -1,16 +1,22 @@
 // API endpoint untuk mendapatkan summary statistik dashboard
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { SummaryStatistik, DistribusiUsia, DistribusiPekerjaan, ApiResponse } from '@/interface/pendataan';
+import { SummaryStatistik, DistribusiUsia, ApiResponse } from '@/interface/pendataan';
+import { getAuthUser, isAdmin } from '@/lib/api-auth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
+export interface DistribusiPendidikan {
+  pendidikan: string;
+  jumlah: number;
+}
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<{ statistik: SummaryStatistik; usia: DistribusiUsia[]; pekerjaan: DistribusiPekerjaan[] }>>
+  res: NextApiResponse<ApiResponse<{ statistik: SummaryStatistik; usia: DistribusiUsia[]; pendidikan: DistribusiPendidikan[] }>>
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({
@@ -19,56 +25,164 @@ export default async function handler(
     });
   }
 
+  const authUser = await getAuthUser(req);
+  
+  if (!authUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized - Please login first',
+    } as any);
+  }
+
+  const userIsAdmin = isAdmin(authUser);
+
   try {
-    console.log('📊 Fetching dashboard statistics...');
+    console.log('📊 Fetching dashboard statistics for user:', authUser.email, 'Role:', authUser.role);
 
-    // Ambil dari view yang sudah dibuat
-    const { data: statistik, error: statsError } = await supabase
-      .from('vw_summary_statistik')
-      .select('metric, value');
+    let stats: SummaryStatistik;
+    let usia: DistribusiUsia[];
+    let pendidikan: DistribusiPendidikan[];
 
-    if (statsError) {
-      console.error('❌ Error fetching statistics:', statsError);
-      throw statsError;
-    }
+    if (userIsAdmin) {
+      // Admin: query all data directly from tables
+      console.log('📊 Admin view: Fetching all statistics...');
+      
+      // Count total KK
+      const { count: kkCount, error: kkError } = await supabase
+        .from('kartu_keluarga')
+        .select('*', { count: 'exact', head: true });
 
-    // Ambil distribusi usia
-    const { data: usia, error: usiaError } = await supabase
-      .from('vw_distribusi_usia')
-      .select('kelompok_usia, jumlah');
+      if (kkError) throw kkError;
 
-    if (usiaError) {
-      console.error('❌ Error fetching usia:', usiaError);
-      throw usiaError;
-    }
+      // Get all penduduk data
+      const { data: pendudukData, error: pendudukError } = await supabase
+        .from('penduduk')
+        .select('jenis_kelamin, status_ktp, status_kk, pendidikan_terakhir, usia_tahun');
 
-    // Ambil distribusi pekerjaan
-    const { data: pekerjaan, error: pekerjaanError } = await supabase
-      .from('vw_distribusi_pekerjaan')
-      .select('pekerjaan, jumlah');
+      if (pendudukError) throw pendudukError;
 
-    if (pekerjaanError) {
-      console.error('❌ Error fetching pekerjaan:', pekerjaanError);
-      throw pekerjaanError;
-    }
+      const totalPenduduk = pendudukData?.length || 0;
+      const totalLakiLaki = pendudukData?.filter(p => p.jenis_kelamin === 'Laki-laki').length || 0;
+      const totalPerempuan = pendudukData?.filter(p => p.jenis_kelamin === 'Perempuan').length || 0;
+      const ktpJayaSampurna = pendudukData?.filter(p => p.status_ktp === 'KTP Jaya Sampurna').length || 0;
+      const ktpLuarDesa = pendudukData?.filter(p => p.status_ktp === 'KTP Luar Desa').length || 0;
+      const kkJayaSampurna = pendudukData?.filter(p => p.status_kk === 'Anggota KK Jaya Sampurna').length || 0;
+      const kkLuarDesa = pendudukData?.filter(p => p.status_kk === 'Anggota KK Luar Desa').length || 0;
 
-    // Transform statistik dari array ke object
-    const stats: SummaryStatistik = {
-      total_kk: 0,
-      total_penduduk: 0,
-      total_laki_laki: 0,
-      total_perempuan: 0,
-      ktp_jaya_sampurna: 0,
-      ktp_luar_desa: 0,
-      kk_jaya_sampurna: 0,
-      kk_luar_desa: 0,
-    };
+      stats = {
+        total_kk: kkCount || 0,
+        total_penduduk: totalPenduduk,
+        total_laki_laki: totalLakiLaki,
+        total_perempuan: totalPerempuan,
+        ktp_jaya_sampurna: ktpJayaSampurna,
+        ktp_luar_desa: ktpLuarDesa,
+        kk_jaya_sampurna: kkJayaSampurna,
+        kk_luar_desa: kkLuarDesa,
+      };
 
-    if (statistik) {
-      statistik.forEach((item: any) => {
-        const key = item.metric as keyof SummaryStatistik;
-        stats[key] = parseInt(item.value) || 0;
+      // Distribusi usia
+      const usiaMap = new Map<string, number>();
+      pendudukData?.forEach(p => {
+        let kelompok = '';
+        if (p.usia_tahun < 5) kelompok = '0-4';
+        else if (p.usia_tahun < 12) kelompok = '5-11';
+        else if (p.usia_tahun < 18) kelompok = '12-17';
+        else if (p.usia_tahun < 25) kelompok = '18-24';
+        else if (p.usia_tahun < 35) kelompok = '25-34';
+        else if (p.usia_tahun < 45) kelompok = '35-44';
+        else if (p.usia_tahun < 60) kelompok = '45-59';
+        else kelompok = '60+';
+        
+        usiaMap.set(kelompok, (usiaMap.get(kelompok) || 0) + 1);
       });
+
+      usia = Array.from(usiaMap.entries()).map(([kelompok_usia, jumlah]) => ({
+        kelompok_usia,
+        jumlah
+      }));
+
+      // Distribusi pendidikan
+      const pendidikanMap = new Map<string, number>();
+      pendudukData?.forEach(p => {
+        if (p.pendidikan_terakhir) {
+          pendidikanMap.set(p.pendidikan_terakhir, (pendidikanMap.get(p.pendidikan_terakhir) || 0) + 1);
+        }
+      });
+
+      pendidikan = Array.from(pendidikanMap.entries())
+        .map(([pendidikan, jumlah]) => ({ pendidikan, jumlah }))
+        .sort((a, b) => b.jumlah - a.jumlah);
+    } else {
+      // User biasa: query filtered data by created_by
+      console.log('🔒 Fetching data for user ID:', authUser.id);
+
+      // Count KK by user
+      const { count: kkCount, error: kkError } = await supabase
+        .from('kartu_keluarga')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', authUser.id);
+
+      if (kkError) throw kkError;
+
+      // Get penduduk for user with gender and KTP status
+      const { data: pendudukData, error: pendudukError } = await supabase
+        .from('penduduk')
+        .select('jenis_kelamin, status_ktp, status_kk, pendidikan_terakhir, usia_tahun')
+        .eq('created_by', authUser.id);
+
+      if (pendudukError) throw pendudukError;
+
+      const totalPenduduk = pendudukData?.length || 0;
+      const totalLakiLaki = pendudukData?.filter(p => p.jenis_kelamin === 'Laki-laki').length || 0;
+      const totalPerempuan = pendudukData?.filter(p => p.jenis_kelamin === 'Perempuan').length || 0;
+      const ktpJayaSampurna = pendudukData?.filter(p => p.status_ktp === 'KTP Jaya Sampurna').length || 0;
+      const ktpLuarDesa = pendudukData?.filter(p => p.status_ktp === 'KTP Luar Desa').length || 0;
+      const kkJayaSampurna = pendudukData?.filter(p => p.status_kk === 'Anggota KK Jaya Sampurna').length || 0;
+      const kkLuarDesa = pendudukData?.filter(p => p.status_kk === 'Anggota KK Luar Desa').length || 0;
+
+      stats = {
+        total_kk: kkCount || 0,
+        total_penduduk: totalPenduduk,
+        total_laki_laki: totalLakiLaki,
+        total_perempuan: totalPerempuan,
+        ktp_jaya_sampurna: ktpJayaSampurna,
+        ktp_luar_desa: ktpLuarDesa,
+        kk_jaya_sampurna: kkJayaSampurna,
+        kk_luar_desa: kkLuarDesa,
+      };
+
+      // Distribusi usia untuk user
+      const usiaMap = new Map<string, number>();
+      pendudukData?.forEach(p => {
+        let kelompok = '';
+        if (p.usia_tahun < 5) kelompok = '0-4';
+        else if (p.usia_tahun < 12) kelompok = '5-11';
+        else if (p.usia_tahun < 18) kelompok = '12-17';
+        else if (p.usia_tahun < 25) kelompok = '18-24';
+        else if (p.usia_tahun < 35) kelompok = '25-34';
+        else if (p.usia_tahun < 45) kelompok = '35-44';
+        else if (p.usia_tahun < 60) kelompok = '45-59';
+        else kelompok = '60+';
+        
+        usiaMap.set(kelompok, (usiaMap.get(kelompok) || 0) + 1);
+      });
+
+      usia = Array.from(usiaMap.entries()).map(([kelompok_usia, jumlah]) => ({
+        kelompok_usia,
+        jumlah
+      }));
+
+      // Distribusi pendidikan untuk user
+      const pendidikanMap = new Map<string, number>();
+      pendudukData?.forEach(p => {
+        if (p.pendidikan_terakhir) {
+          pendidikanMap.set(p.pendidikan_terakhir, (pendidikanMap.get(p.pendidikan_terakhir) || 0) + 1);
+        }
+      });
+
+      pendidikan = Array.from(pendidikanMap.entries())
+        .map(([pendidikan, jumlah]) => ({ pendidikan, jumlah }))
+        .sort((a, b) => b.jumlah - a.jumlah);
     }
 
     console.log('✅ Statistics fetched successfully:', stats);
@@ -78,8 +192,8 @@ export default async function handler(
       message: 'Statistics retrieved successfully',
       data: {
         statistik: stats,
-        usia: usia as DistribusiUsia[],
-        pekerjaan: pekerjaan as DistribusiPekerjaan[],
+        usia: usia,
+        pendidikan: pendidikan,
       },
     });
   } catch (error: any) {

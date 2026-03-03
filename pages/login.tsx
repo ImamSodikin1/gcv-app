@@ -199,7 +199,7 @@ export default function LoginPage() {
                         </Link>
                     </motion.div>
 
-                    {/* Demo Account Info */}
+                    {/* Demo Account Info
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -215,7 +215,7 @@ export default function LoginPage() {
                             <p><span className="font-medium">Admin:</span> admin@perumahan.com / admin123</p>
                             <p><span className="font-medium">Warga:</span> budi@gmail.com / user123</p>
                         </div>
-                    </motion.div>
+                    </motion.div> */}
                 </motion.div>
             </div>
         </>

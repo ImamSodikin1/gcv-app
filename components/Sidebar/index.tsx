@@ -95,11 +95,11 @@ const navItems: NavItem[] = [
         label: 'Pendataan Warga',
         href: '/pendataan',
         icon: <FaInfoCircle size={20} />,
-        adminOnly: true,
+        requireAuth: true,
         submenu: [
-            { label: 'Dashboard', href: '/pendataan', icon: null, adminOnly: true },
-            { label: 'Kartu Keluarga', href: '/pendataan/kartu-keluarga', icon: null, adminOnly: true },
-            { label: 'Data Penduduk', href: '/pendataan/penduduk', icon: null, adminOnly: true },
+            { label: 'Dashboard', href: '/pendataan', icon: null, requireAuth: true },
+            { label: 'Kartu Keluarga', href: '/pendataan/kartu-keluarga', icon: null, requireAuth: true },
+            { label: 'Data Penduduk', href: '/pendataan/penduduk', icon: null, requireAuth: true },
         ],
     },
     {
@@ -472,7 +472,7 @@ export default function Sidebar() {
 
             {/* Desktop Sidebar - always visible, takes up space in flex layout */}
             <aside
-                className={`hidden md:block h-screen ${isCollapsed ? 'w-20' : 'w-72'} flex-shrink-0 sticky top-0 backdrop-blur-md border-r shadow-xl transition-all duration-300 relative ${sidebarBg}`}
+                className={`hidden md:block h-screen ${isCollapsed ? 'w-20' : 'w-72'} flex-shrink-0 sticky top-0 backdrop-blur-md border-r shadow-xl transition-all duration-300 ${sidebarBg}`}
             >
                 {sidebarContent(isCollapsed)}
             </aside>

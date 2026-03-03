@@ -1,10 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiInfo, FiDownload } from 'react-icons/fi';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { KartuKeluarga, PaginatedResponse } from '@/interface/pendataan';
+import MenuPendataan from '@/components/MenuPendataan';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { showAlert } from '@/lib/swal';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function KartuKeluargaPage() {
+  const { user, isAdmin } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const swal = showAlert(theme);
   const [data, setData] = useState<KartuKeluarga[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +32,7 @@ export default function KartuKeluargaPage() {
     alamat: '',
     nama_kepala_keluarga: '',
     nik_kepala_keluarga: '',
-    status_kk: 'aktif' as const,
+    status_kk: 'aktif' as 'aktif' | 'non-aktif' | 'pindah' | 'hilang',
   });
 
   useEffect(() => {
@@ -29,6 +40,8 @@ export default function KartuKeluargaPage() {
   }, [page, search]);
 
   const fetchData = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -37,7 +50,11 @@ export default function KartuKeluargaPage() {
         ...(search && { search }),
       });
 
-      const response = await fetch(`/api/pendataan/kartu-keluarga?${params}`);
+      const response = await fetch(`/api/pendataan/kartu-keluarga?${params}`, {
+        headers: {
+          'x-user-id': user.id,
+        },
+      });
       const result: PaginatedResponse<KartuKeluarga> = await response.json();
 
       if (!result.success) {
@@ -57,6 +74,8 @@ export default function KartuKeluargaPage() {
 
   const handleAddKK = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+    
     try {
       const url = editingId 
         ? `/api/pendataan/kartu-keluarga`
@@ -65,7 +84,10 @@ export default function KartuKeluargaPage() {
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
         body: JSON.stringify(
           editingId ? { id: editingId, ...formData } : formData
         ),
@@ -90,9 +112,12 @@ export default function KartuKeluargaPage() {
       setShowAddForm(false);
       fetchData(); // Refresh data
 
-      alert(editingId ? 'Kartu Keluarga berhasil diperbarui!' : 'Kartu Keluarga berhasil ditambahkan!');
+      swal.success(
+        editingId ? 'Berhasil Diperbarui!' : 'Berhasil Ditambahkan!',
+        editingId ? 'Data Kartu Keluarga berhasil diperbarui' : 'Data Kartu Keluarga berhasil ditambahkan'
+      );
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      swal.error('Gagal Menyimpan', err.message);
     }
   };
 
@@ -111,10 +136,19 @@ export default function KartuKeluargaPage() {
   };
 
   const handleDeleteKK = async (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus Kartu Keluarga ini?')) {
+    if (!user) return;
+    const confirmed = await swal.confirm(
+      'Hapus Kartu Keluarga?',
+      'Data yang dihapus tidak dapat dikembalikan'
+    );
+    
+    if (confirmed) {
       try {
         const response = await fetch(`/api/pendataan/kartu-keluarga?id=${id}`, {
           method: 'DELETE',
+          headers: {
+            'x-user-id': user.id,
+          },
         });
 
         const result = await response.json();
@@ -123,11 +157,122 @@ export default function KartuKeluargaPage() {
         }
 
         fetchData();
-        alert('Kartu Keluarga berhasil dihapus!');
+        swal.success('Berhasil Dihapus!', 'Data Kartu Keluarga berhasil dihapus');
       } catch (err: any) {
-        alert(`Error: ${err.message}`);
+        swal.error('Gagal Menghapus', err.message);
       }
     }
+  };
+
+  const generateDummyData = (): KartuKeluarga[] => {
+    return [
+      {
+        id: '1',
+        no_kk: '3201012101230001',
+        rt: '001',
+        rw: '001',
+        alamat: 'Jl. Merdeka No. 123',
+        nama_kepala_keluarga: 'Budi Santoso',
+        nik_kepala_keluarga: '3201011501850001',
+        status_kk: 'aktif',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '2',
+        no_kk: '3201012101230002',
+        rt: '002',
+        rw: '001',
+        alamat: 'Jl. Sudirman No. 45',
+        nama_kepala_keluarga: 'Siti Nurhaliza',
+        nik_kepala_keluarga: '3201012208900002',
+        status_kk: 'aktif',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '3',
+        no_kk: '3201012101230003',
+        rt: '003',
+        rw: '002',
+        alamat: 'Jl. Gatot Subroto No. 78',
+        nama_kepala_keluarga: 'Ahmad Wijaya',
+        nik_kepala_keluarga: '3201011203880003',
+        status_kk: 'aktif',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  };
+
+  const handleDownloadExcel = () => {
+    const exportData = data.length > 0 ? data : generateDummyData();
+    
+    const worksheetData = exportData.map((item, index) => ({
+      'No': index + 1,
+      'No. KK': item.no_kk,
+      'RT': item.rt,
+      'RW': item.rw,
+      'Alamat': item.alamat,
+      'Nama Kepala Keluarga': item.nama_kepala_keluarga,
+      'NIK Kepala Keluarga': item.nik_kepala_keluarga,
+      'Status KK': item.status_kk.toUpperCase(),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Kartu Keluarga');
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 20 }, // No. KK
+      { wch: 8 },  // RT
+      { wch: 8 },  // RW
+      { wch: 30 }, // Alamat
+      { wch: 25 }, // Nama Kepala Keluarga
+      { wch: 20 }, // NIK Kepala Keluarga
+      { wch: 12 }, // Status KK
+    ];
+
+    XLSX.writeFile(workbook, `Data_Kartu_Keluarga_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleDownloadPDF = () => {
+    const exportData = data.length > 0 ? data : generateDummyData();
+    
+    const doc = new jsPDF('landscape');
+    
+    // Add title
+    doc.setFontSize(16);
+    doc.text('Data Kartu Keluarga', 14, 15);
+    
+    // Add date
+    doc.setFontSize(10);
+    doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, 14, 22);
+    
+    // Table data
+    const tableData = exportData.map((item, index) => [
+      index + 1,
+      item.no_kk || '-',
+      item.rt || '-',
+      item.rw || '-',
+      item.alamat || '-',
+      item.nama_kepala_keluarga || '-',
+      item.nik_kepala_keluarga || '-',
+      item.status_kk?.toUpperCase() || '-',
+    ]);
+
+    // Add table
+    autoTable(doc, {
+      head: [['No', 'No. KK', 'RT', 'RW', 'Alamat', 'Nama KK', 'NIK KK', 'Status']],
+      body: tableData,
+      startY: 28,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    doc.save(`Data_Kartu_Keluarga_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleCancelEdit = () => {
@@ -146,31 +291,56 @@ export default function KartuKeluargaPage() {
 
   const totalPages = Math.ceil(total / limit);
 
+  const textMain = isDark ? 'text-white' : 'text-gray-900';
+  const textSub = isDark ? 'text-gray-400' : 'text-gray-600';
+  const cardBg = isDark ? 'bg-gradient-to-br from-[#181926]/80 via-[#231b2e]/80 to-[#2d1e3a]/80 border-white/10' : 'bg-white border-gray-200';
+  const inputBg = isDark ? 'bg-[#181926] border-white/10 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900';
+  const tableBg = isDark ? 'bg-[#181926]/50' : 'bg-gray-50';
+  const tableHoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className={`min-h-screen p-3 sm:p-6 ${
+      isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+    }`}>
       <div className="max-w-6xl mx-auto">
+        {/* Menu Navigasi */}
+        <MenuPendataan />
+
+        {/* Info Banner untuk User Biasa */}
+        {!isAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`rounded-lg p-4 mb-6 flex items-start gap-3 ${
+              isDark ? 'bg-blue-500/10 border border-blue-400/30' : 'bg-blue-50 border border-blue-200'
+            }`}
+          >
+            <FiInfo className="text-blue-500 mt-0.5 flex-shrink-0" size={20} />
+            <div>
+              <h3 className={`font-semibold ${isDark ? 'text-blue-300' : 'text-blue-900'}`}>Informasi untuk Warga</h3>
+              <p className={`text-sm mt-1 ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                Anda dapat mendaftarkan data Kartu Keluarga Anda sendiri. Data yang ditampilkan adalah data yang Anda daftarkan. 
+                Admin dapat melihat dan mengelola semua data.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8"
         >
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Link href="/pendataan">
-                <a className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                  ← Kembali ke Dashboard
-                </a>
-              </Link>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">Kelola Kartu Keluarga</h1>
+            <h1 className={`text-2xl sm:text-3xl font-bold ${textMain}`}>Kelola Kartu Keluarga</h1>
           </div>
           <button
             onClick={() => {
               handleCancelEdit();
               setShowAddForm(!showAddForm);
             }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition w-full sm:w-auto justify-center"
           >
             <FiPlus /> {editingId ? 'Edit KK' : 'Tambah KK'}
           </button>
@@ -181,16 +351,16 @@ export default function KartuKeluargaPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg p-6 shadow-lg mb-6"
+            className={`rounded-lg p-6 shadow-lg mb-6 ${cardBg} border`}
           >
-            <h2 className="text-lg font-semibold mb-4">{editingId ? 'Edit Kartu Keluarga' : 'Tambah Kartu Keluarga Baru'}</h2>
+            <h2 className={`text-lg font-semibold mb-4 ${textMain}`}>{editingId ? 'Edit Kartu Keluarga' : 'Tambah Kartu Keluarga Baru'}</h2>
             <form onSubmit={handleAddKK} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
                 type="text"
                 placeholder="No. KK"
                 value={formData.no_kk}
                 onChange={(e) => setFormData({ ...formData, no_kk: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
                 required
                 disabled={!!editingId}
               />
@@ -199,7 +369,7 @@ export default function KartuKeluargaPage() {
                 placeholder="RT"
                 value={formData.rt}
                 onChange={(e) => setFormData({ ...formData, rt: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
                 required
               />
               <input
@@ -207,7 +377,7 @@ export default function KartuKeluargaPage() {
                 placeholder="RW"
                 value={formData.rw}
                 onChange={(e) => setFormData({ ...formData, rw: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
                 required
               />
               <input
@@ -215,7 +385,7 @@ export default function KartuKeluargaPage() {
                 placeholder="Alamat"
                 value={formData.alamat}
                 onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
                 required
               />
               <input
@@ -223,7 +393,7 @@ export default function KartuKeluargaPage() {
                 placeholder="Nama Kepala Keluarga"
                 value={formData.nama_kepala_keluarga}
                 onChange={(e) => setFormData({ ...formData, nama_kepala_keluarga: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
                 required
               />
               <input
@@ -231,12 +401,12 @@ export default function KartuKeluargaPage() {
                 placeholder="NIK Kepala Keluarga"
                 value={formData.nik_kepala_keluarga}
                 onChange={(e) => setFormData({ ...formData, nik_kepala_keluarga: e.target.value })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
               />
               <select
                 value={formData.status_kk}
                 onChange={(e) => setFormData({ ...formData, status_kk: e.target.value as any })}
-                className="border rounded px-3 py-2"
+                className={`border rounded px-3 py-2 ${inputBg}`}
               >
                 <option value="aktif">Aktif</option>
                 <option value="non-aktif">Non-Aktif</option>
@@ -262,20 +432,46 @@ export default function KartuKeluargaPage() {
           </motion.div>
         )}
 
-        {/* Search */}
-        <div className="bg-white rounded-lg p-4 shadow mb-6">
-          <div className="flex items-center gap-2">
-            <FiSearch className="text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari No. KK atau Alamat..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="flex-1 outline-none"
-            />
+        {/* Search and Download */}
+        <div className={`rounded-lg p-4 shadow mb-6 ${cardBg} border`}>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex-1 flex items-center gap-2">
+              <FiSearch className={isDark ? 'text-gray-500' : 'text-gray-400'} />
+              <input
+                type="text"
+                placeholder="Cari No. KK atau Alamat..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className={`flex-1 outline-none bg-transparent ${textMain}`}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDownloadExcel}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  isDark
+                    ? 'bg-green-600/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 hover:shadow-lg'
+                    : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-md'
+                }`}
+              >
+                <FiDownload className="w-4 h-4" />
+                <span>Excel</span>
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  isDark
+                    ? 'bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 hover:shadow-lg'
+                    : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-md'
+                }`}
+              >
+                <FiDownload className="w-4 h-4" />
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -293,55 +489,63 @@ export default function KartuKeluargaPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-white rounded-lg shadow-lg overflow-hidden"
+              className={`rounded-lg shadow-lg overflow-hidden ${cardBg} border`}
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                <table className="w-full min-w-[640px]">
+                  <thead className={`border-b ${tableBg}`}>
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">No. KK</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">RT/RW</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Alamat</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Kepala Keluarga</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Aksi</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>No. KK</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>RT/RW</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Alamat</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Kepala Keluarga</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Status</th>
+                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-center text-xs sm:text-sm font-semibold ${textMain}`}>Aksi</th>
                     </tr>
                   </thead>
-                  <tbody divide-y>
+                  <tbody className="divide-y divide-gray-200">
                     {data.map((kk) => (
-                      <tr key={kk.id} className="hover:bg-gray-50 transition">
-                        <td className="px-6 py-4 font-mono text-sm">{kk.no_kk}</td>
-                        <td className="px-6 py-4 text-sm">
+                      <tr key={kk.id} className={`transition ${tableHoverBg}`}>
+                        <td className={`px-3 sm:px-6 py-3 sm:py-4 font-mono text-xs sm:text-sm ${textMain}`}>{kk.no_kk}</td>
+                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textMain}`}>
                           RT {kk.rt} / RW {kk.rw}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{kk.alamat}</td>
-                        <td className="px-6 py-4 text-sm">{kk.nama_kepala_keluarga}</td>
-                        <td className="px-6 py-4">
+                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textSub}`}>{kk.alamat}</td>
+                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textMain}`}>{kk.nama_kepala_keluarga}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
                             kk.status_kk === 'aktif'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? isDark ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-800'
+                              : isDark ? 'bg-gray-500/20 text-gray-300' : 'bg-gray-100 text-gray-800'
                           }`}>
                             {kk.status_kk}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => handleEditKK(kk)}
-                              className="text-blue-600 hover:text-blue-800 transition"
-                              title="Edit"
-                            >
-                              <FiEdit2 />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteKK(kk.id)}
-                              className="text-red-600 hover:text-red-800 transition"
-                              title="Hapus"
-                            >
-                              <FiTrash2 />
-                            </button>
-                          </div>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
+                          {isAdmin ? (
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => handleEditKK(kk)}
+                                className={`transition p-2 rounded ${
+                                  isDark ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-600 hover:bg-blue-50'
+                                }`}
+                                title="Edit"
+                              >
+                                <FiEdit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteKK(kk.id)}
+                                className={`transition p-2 rounded ${
+                                  isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-50'
+                                }`}
+                                title="Hapus"
+                              >
+                                <FiTrash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`text-xs italic ${textSub}`}>Data Anda</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -351,27 +555,51 @@ export default function KartuKeluargaPage() {
             </motion.div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-sm text-gray-600">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Menampilkan {(page - 1) * limit + 1} - {Math.min(page * limit, total)} dari {total} data
               </p>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
-                  className="flex items-center gap-1 px-3 py-2 border rounded disabled:opacity-50"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                    page === 1
+                      ? isDark
+                        ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDark
+                      ? 'bg-[#181926]/80 text-gray-300 border border-white/10 hover:bg-purple-500/20 hover:text-purple-300 hover:shadow-lg hover:shadow-purple-500/10'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-md'
+                  }`}
                 >
-                  <FiChevronLeft /> Sebelumnya
+                  <FiChevronLeft className="w-4 h-4" />
+                  <span>Sebelumnya</span>
                 </button>
-                <div className="px-4 py-2 border rounded bg-gray-50">
+                
+                <div className={`px-5 py-2 rounded-lg font-semibold ${
+                  isDark 
+                    ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' 
+                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}>
                   Halaman {page} dari {totalPages}
                 </div>
+                
                 <button
                   onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
-                  className="flex items-center gap-1 px-3 py-2 border rounded disabled:opacity-50"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                    page === totalPages
+                      ? isDark
+                        ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDark
+                      ? 'bg-[#181926]/80 text-gray-300 border border-white/10 hover:bg-purple-500/20 hover:text-purple-300 hover:shadow-lg hover:shadow-purple-500/10'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-md'
+                  }`}
                 >
-                  Berikutnya <FiChevronRight />
+                  <span>Berikutnya</span>
+                  <FiChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

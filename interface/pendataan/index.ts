@@ -104,6 +104,11 @@ export interface DistribusiPekerjaan {
   jumlah: number;
 }
 
+export interface DistribusiGolonganDarah {
+  golongan_darah: string;
+  jumlah: number;
+}
+
 // 4. API RESPONSES
 export interface ApiResponse<T> {
   success: boolean;
