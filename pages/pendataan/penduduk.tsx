@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiInfo, FiDownload } from 'react-icons/fi';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Penduduk, PaginatedResponse, KartuKeluarga } from '@/interface/pendataan';
 import MenuPendataan from '@/components/MenuPendataan';

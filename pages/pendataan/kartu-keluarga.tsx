@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiInfo, FiDownload } from 'react-icons/fi';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { KartuKeluarga, PaginatedResponse } from '@/interface/pendataan';
 import MenuPendataan from '@/components/MenuPendataan';
@@ -35,11 +34,7 @@ export default function KartuKeluargaPage() {
     status_kk: 'aktif' as 'aktif' | 'non-aktif' | 'pindah' | 'hilang',
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [page, search]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -64,13 +59,17 @@ export default function KartuKeluargaPage() {
       setData(result.data);
       setTotal(result.total);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching data:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, page, limit, search]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleAddKK = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,8 +115,8 @@ export default function KartuKeluargaPage() {
         editingId ? 'Berhasil Diperbarui!' : 'Berhasil Ditambahkan!',
         editingId ? 'Data Kartu Keluarga berhasil diperbarui' : 'Data Kartu Keluarga berhasil ditambahkan'
       );
-    } catch (err: any) {
-      swal.error('Gagal Menyimpan', err.message);
+    } catch (err: unknown) {
+      swal.error('Gagal Menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
     }
   };
 
@@ -158,8 +157,8 @@ export default function KartuKeluargaPage() {
 
         fetchData();
         swal.success('Berhasil Dihapus!', 'Data Kartu Keluarga berhasil dihapus');
-      } catch (err: any) {
-        swal.error('Gagal Menghapus', err.message);
+      } catch (err: unknown) {
+        swal.error('Gagal Menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
       }
     }
   };
