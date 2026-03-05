@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiInfo, FiDownload } from 'react-icons/fi';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiInfo, FiDownload } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { KartuKeluarga, PaginatedResponse } from '@/interface/pendataan';
 import MenuPendataan from '@/components/MenuPendataan';
+import { ModernTable } from '@/components/ModernTable';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { showAlert } from '@/lib/swal';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -29,9 +32,14 @@ export default function KartuKeluargaPage() {
     rt: '',
     rw: '',
     alamat: '',
+    kelurahan: '',
+    kecamatan: '',
+    kabupaten: '',
+    provinsi: '',
     nama_kepala_keluarga: '',
     nik_kepala_keluarga: '',
     status_kk: 'aktif' as 'aktif' | 'non-aktif' | 'pindah' | 'hilang',
+    kategori_kk: '' as 'Jaya Sampurna' | 'Luar Desa' | '',
   });
 
   const fetchData = useCallback(async () => {
@@ -71,9 +79,58 @@ export default function KartuKeluargaPage() {
     fetchData();
   }, [fetchData]);
 
+  // Real-time subscription untuk perubahan data KK
+  const { lastEvent } = useRealtimeRefresh({
+    tables: ['kartu_keluarga'],
+    refetch: fetchData,
+    source: 'supabase',
+    debounceMs: 800,
+  });
+
   const handleAddKK = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    const trimmedPayload = {
+      ...formData,
+      no_kk: formData.no_kk.trim(),
+      rt: formData.rt.trim(),
+      rw: formData.rw.trim(),
+      alamat: formData.alamat.trim(),
+      kelurahan: formData.kelurahan.trim(),
+      kecamatan: formData.kecamatan.trim(),
+      kabupaten: formData.kabupaten.trim(),
+      provinsi: formData.provinsi.trim(),
+      nama_kepala_keluarga: formData.nama_kepala_keluarga.trim(),
+      nik_kepala_keluarga: formData.nik_kepala_keluarga.trim(),
+    };
+
+    const requiredFields: Array<{ key: keyof typeof trimmedPayload; label: string }> = [
+      { key: 'no_kk', label: 'No. Kartu Keluarga' },
+      { key: 'rt', label: 'RT' },
+      { key: 'rw', label: 'RW' },
+      { key: 'alamat', label: 'Alamat Lengkap' },
+      { key: 'kelurahan', label: 'Kelurahan' },
+      { key: 'kecamatan', label: 'Kecamatan' },
+      { key: 'kabupaten', label: 'Kabupaten/Kota' },
+      { key: 'provinsi', label: 'Provinsi' },
+      { key: 'nama_kepala_keluarga', label: 'Nama Kepala Keluarga' },
+      { key: 'nik_kepala_keluarga', label: 'NIK Kepala Keluarga' },
+      { key: 'kategori_kk', label: 'Kategori Keluarga' },
+    ];
+
+    const emptyLabels = requiredFields
+      .filter(({ key }) => {
+        const value = trimmedPayload[key];
+        if (typeof value === 'string') return value.trim() === '';
+        return value == null || value === '';
+      })
+      .map(({ label }) => label);
+
+    if (emptyLabels.length > 0) {
+      swal.error('Validasi Gagal', `Field wajib diisi: ${emptyLabels.join(', ')}`);
+      return;
+    }
     
     try {
       const url = editingId 
@@ -88,7 +145,7 @@ export default function KartuKeluargaPage() {
           'x-user-id': user.id,
         },
         body: JSON.stringify(
-          editingId ? { id: editingId, ...formData } : formData
+          editingId ? { id: editingId, ...trimmedPayload } : trimmedPayload
         ),
       });
 
@@ -103,9 +160,14 @@ export default function KartuKeluargaPage() {
         rt: '',
         rw: '',
         alamat: '',
+        kelurahan: '',
+        kecamatan: '',
+        kabupaten: '',
+        provinsi: '',
         nama_kepala_keluarga: '',
         nik_kepala_keluarga: '',
         status_kk: 'aktif',
+        kategori_kk: '',
       });
       setEditingId(null);
       setShowAddForm(false);
@@ -126,9 +188,14 @@ export default function KartuKeluargaPage() {
       rt: kk.rt,
       rw: kk.rw,
       alamat: kk.alamat,
+      kelurahan: kk.kelurahan || '',
+      kecamatan: kk.kecamatan || '',
+      kabupaten: kk.kabupaten || '',
+      provinsi: kk.provinsi || '',
       nama_kepala_keluarga: kk.nama_kepala_keluarga,
       nik_kepala_keluarga: kk.nik_kepala_keluarga || '',
       status_kk: kk.status_kk,
+      kategori_kk: (kk.kategori_kk || '') as 'Jaya Sampurna' | 'Luar Desa' | '',
     });
     setEditingId(kk.id);
     setShowAddForm(true);
@@ -171,9 +238,14 @@ export default function KartuKeluargaPage() {
         rt: '001',
         rw: '001',
         alamat: 'Jl. Merdeka No. 123',
+        kelurahan: 'Jaya Sampurna',
+        kecamatan: 'Jaya Sampurna',
+        kabupaten: 'Kabupaten Bogor',
+        provinsi: 'Jawa Barat',
         nama_kepala_keluarga: 'Budi Santoso',
         nik_kepala_keluarga: '3201011501850001',
         status_kk: 'aktif',
+        kategori_kk: 'Jaya Sampurna',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
@@ -183,9 +255,14 @@ export default function KartuKeluargaPage() {
         rt: '002',
         rw: '001',
         alamat: 'Jl. Sudirman No. 45',
+        kelurahan: 'Jaya Sampurna',
+        kecamatan: 'Jaya Sampurna',
+        kabupaten: 'Kabupaten Bogor',
+        provinsi: 'Jawa Barat',
         nama_kepala_keluarga: 'Siti Nurhaliza',
         nik_kepala_keluarga: '3201012208900002',
         status_kk: 'aktif',
+        kategori_kk: 'Luar Desa',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
@@ -195,9 +272,14 @@ export default function KartuKeluargaPage() {
         rt: '003',
         rw: '002',
         alamat: 'Jl. Gatot Subroto No. 78',
+        kelurahan: 'Jaya Sampurna',
+        kecamatan: 'Jaya Sampurna',
+        kabupaten: 'Kabupaten Bogor',
+        provinsi: 'Jawa Barat',
         nama_kepala_keluarga: 'Ahmad Wijaya',
         nik_kepala_keluarga: '3201011203880003',
         status_kk: 'aktif',
+        kategori_kk: 'Jaya Sampurna',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
@@ -213,9 +295,14 @@ export default function KartuKeluargaPage() {
       'RT': item.rt,
       'RW': item.rw,
       'Alamat': item.alamat,
+      'Kelurahan': item.kelurahan || '-',
+      'Kecamatan': item.kecamatan || '-',
+      'Kabupaten': item.kabupaten || '-',
+      'Provinsi': item.provinsi || '-',
       'Nama Kepala Keluarga': item.nama_kepala_keluarga,
       'NIK Kepala Keluarga': item.nik_kepala_keluarga,
       'Status KK': item.status_kk.toUpperCase(),
+      'Kategori': item.kategori_kk || '-',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
@@ -228,10 +315,15 @@ export default function KartuKeluargaPage() {
       { wch: 20 }, // No. KK
       { wch: 8 },  // RT
       { wch: 8 },  // RW
-      { wch: 30 }, // Alamat
+      { wch: 25 }, // Alamat
+      { wch: 15 }, // Kelurahan
+      { wch: 15 }, // Kecamatan
+      { wch: 18 }, // Kabupaten
+      { wch: 15 }, // Provinsi
       { wch: 25 }, // Nama Kepala Keluarga
       { wch: 20 }, // NIK Kepala Keluarga
       { wch: 12 }, // Status KK
+      { wch: 15 }, // Kategori
     ];
 
     XLSX.writeFile(workbook, `Data_Kartu_Keluarga_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -257,17 +349,22 @@ export default function KartuKeluargaPage() {
       item.rt || '-',
       item.rw || '-',
       item.alamat || '-',
+      item.kelurahan || '-',
+      item.kecamatan || '-',
+      item.kabupaten || '-',
+      item.provinsi || '-',
       item.nama_kepala_keluarga || '-',
       item.nik_kepala_keluarga || '-',
       item.status_kk?.toUpperCase() || '-',
+      item.kategori_kk || '-',
     ]);
 
     // Add table
     autoTable(doc, {
-      head: [['No', 'No. KK', 'RT', 'RW', 'Alamat', 'Nama KK', 'NIK KK', 'Status']],
+      head: [['No', 'No. KK', 'RT', 'RW', 'Alamat', 'Kelurahan', 'Kecamatan', 'Kabupaten', 'Provinsi', 'Nama KK', 'NIK KK', 'Status', 'Kategori']],
       body: tableData,
       startY: 28,
-      styles: { fontSize: 8 },
+      styles: { fontSize: 7 },
       headStyles: { fillColor: [59, 130, 246] },
     });
 
@@ -280,9 +377,14 @@ export default function KartuKeluargaPage() {
       rt: '',
       rw: '',
       alamat: '',
+      kelurahan: '',
+      kecamatan: '',
+      kabupaten: '',
+      provinsi: '',
       nama_kepala_keluarga: '',
       nik_kepala_keluarga: '',
       status_kk: 'aktif',
+      kategori_kk: '',
     });
     setEditingId(null);
     setShowAddForm(false);
@@ -294,14 +396,154 @@ export default function KartuKeluargaPage() {
   const textSub = isDark ? 'text-gray-400' : 'text-gray-600';
   const cardBg = isDark ? 'bg-gradient-to-br from-[#181926]/80 via-[#231b2e]/80 to-[#2d1e3a]/80 border-white/10' : 'bg-white border-gray-200';
   const inputBg = isDark ? 'bg-[#181926] border-white/10 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900';
-  const tableBg = isDark ? 'bg-[#181926]/50' : 'bg-gray-50';
-  const tableHoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100';
+
+  // Define table columns using TanStack Table
+  const columns = useMemo<ColumnDef<KartuKeluarga>[]>(
+    () => [
+      {
+        accessorKey: 'no_kk',
+        header: 'No. KK',
+        cell: (info) => (
+          <span className="font-mono text-xs">{info.getValue() as string}</span>
+        ),
+      },
+      {
+        accessorFn: (row) => `RT ${row.rt} / RW ${row.rw}`,
+        id: 'rtrw',
+        header: 'RT/RW',
+        cell: (info) => <span className="text-xs">{info.getValue() as string}</span>,
+      },
+      {
+        accessorKey: 'nama_kepala_keluarga',
+        header: 'Kepala Keluarga',
+        cell: (info) => <span className="font-medium text-xs">{info.getValue() as string}</span>,
+      },
+      {
+        accessorFn: (row) => {
+          const parts = [];
+          if (row.alamat) parts.push(row.alamat);
+          if (row.kelurahan) parts.push(`Kel. ${row.kelurahan}`);
+          if (row.kecamatan) parts.push(`Kec. ${row.kecamatan}`);
+          if (row.kabupaten) parts.push(row.kabupaten);
+          if (row.provinsi) parts.push(row.provinsi);
+          return parts.join(', ');
+        },
+        id: 'alamat_lengkap',
+        header: 'Alamat Lengkap',
+        cell: (info) => (
+          <div className="text-xs max-w-md">
+            <p className="line-clamp-2 leading-tight">{info.getValue() as string}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'alamat',
+        header: 'Jalan',
+        cell: (info) => <span className="text-xs max-w-xs truncate">{(info.getValue() as string) || '-'}</span>,
+      },
+      {
+        accessorKey: 'kelurahan',
+        header: 'Kelurahan',
+        cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span>,
+      },
+      {
+        accessorKey: 'kecamatan',
+        header: 'Kecamatan',
+        cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span>,
+      },
+      {
+        accessorKey: 'kabupaten',
+        header: 'Kabupaten',
+        cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span>,
+      },
+      {
+        accessorKey: 'provinsi',
+        header: 'Provinsi',
+        cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span>,
+      },
+      {
+        accessorKey: 'nik_kepala_keluarga',
+        header: 'NIK KK',
+        cell: (info) => (
+          <span className="font-mono text-xs">{(info.getValue() as string) || '-'}</span>
+        ),
+      },
+      {
+        accessorKey: 'status_kk',
+        header: 'Status',
+        cell: (info) => {
+          const val = info.getValue() as string;
+          const statusMap: Record<string, { bg: string; text: string }> = {
+            'aktif': isDark ? { bg: 'bg-green-500/20', text: 'text-green-300' } : { bg: 'bg-green-100', text: 'text-green-800' },
+            'non-aktif': isDark ? { bg: 'bg-yellow-500/20', text: 'text-yellow-300' } : { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+            'pindah': isDark ? { bg: 'bg-orange-500/20', text: 'text-orange-300' } : { bg: 'bg-orange-100', text: 'text-orange-800' },
+            'hilang': isDark ? { bg: 'bg-red-500/20', text: 'text-red-300' } : { bg: 'bg-red-100', text: 'text-red-800' },
+          };
+          const status = statusMap[val] || (isDark ? { bg: 'bg-gray-500/20', text: 'text-gray-300' } : { bg: 'bg-gray-100', text: 'text-gray-800' });
+          return (
+            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${status.bg} ${status.text}`}>
+              {val.charAt(0).toUpperCase() + val.slice(1)}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'kategori_kk',
+        header: 'Kategori',
+        cell: (info) => {
+          const val = info.getValue() as string;
+          const kategoriMap: Record<string, { bg: string; text: string }> = {
+            'Jaya Sampurna': isDark ? { bg: 'bg-blue-500/20', text: 'text-blue-300' } : { bg: 'bg-blue-100', text: 'text-blue-800' },
+            'Luar Desa': isDark ? { bg: 'bg-purple-500/20', text: 'text-purple-300' } : { bg: 'bg-purple-100', text: 'text-purple-800' },
+          };
+          const kategori = kategoriMap[val] || (isDark ? { bg: 'bg-gray-500/20', text: 'text-gray-300' } : { bg: 'bg-gray-100', text: 'text-gray-800' });
+          return val ? (
+            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${kategori.bg} ${kategori.text}`}>
+              {val}
+            </span>
+          ) : (
+            <span className={`text-xs ${textSub}`}>-</span>
+          );
+        },
+      },
+      {
+        id: 'aksi',
+        header: 'Aksi',
+        cell: (info) => (
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => handleEditKK(info.row.original)}
+              className={`transition p-2 rounded ${
+                isDark ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-600 hover:bg-blue-50'
+              }`}
+              title="Edit"
+            >
+              <FiEdit2 className="w-4 h-4" />
+            </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => handleDeleteKK(info.row.original.id)}
+                className={`transition p-2 rounded ${
+                  isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-50'
+                }`}
+                title="Hapus"
+              >
+                <FiTrash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [isDark, isAdmin, textSub, handleEditKK, handleDeleteKK]
+  );
 
   return (
-    <div className={`min-h-screen p-3 sm:p-6 ${
+    <div className={`min-h-screen ${
       isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gradient-to-br from-slate-50 to-slate-100'
     }`}>
-      <div className="max-w-6xl mx-auto">
+      <div className="pt-20 md:pt-6 px-4 md:px-8 pb-8">
         {/* Menu Navigasi */}
         <MenuPendataan />
 
@@ -329,9 +571,9 @@ export default function KartuKeluargaPage() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4"
         >
-          <div>
+          <div> 
             <h1 className={`text-2xl sm:text-3xl font-bold ${textMain}`}>Kelola Kartu Keluarga</h1>
           </div>
           <button
@@ -350,68 +592,147 @@ export default function KartuKeluargaPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`rounded-lg p-6 shadow-lg mb-6 ${cardBg} border`}
+            className={`rounded-lg p-6 shadow-lg mb-6 ${cardBg} border-2`}
           >
             <h2 className={`text-lg font-semibold mb-4 ${textMain}`}>{editingId ? 'Edit Kartu Keluarga' : 'Tambah Kartu Keluarga Baru'}</h2>
             <form onSubmit={handleAddKK} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="No. KK"
-                value={formData.no_kk}
-                onChange={(e) => setFormData({ ...formData, no_kk: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-                required
-                disabled={!!editingId}
-              />
-              <input
-                type="text"
-                placeholder="RT"
-                value={formData.rt}
-                onChange={(e) => setFormData({ ...formData, rt: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-                required
-              />
-              <input
-                type="text"
-                placeholder="RW"
-                value={formData.rw}
-                onChange={(e) => setFormData({ ...formData, rw: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Alamat"
-                value={formData.alamat}
-                onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Nama Kepala Keluarga"
-                value={formData.nama_kepala_keluarga}
-                onChange={(e) => setFormData({ ...formData, nama_kepala_keluarga: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-                required
-              />
-              <input
-                type="text"
-                placeholder="NIK Kepala Keluarga"
-                value={formData.nik_kepala_keluarga}
-                onChange={(e) => setFormData({ ...formData, nik_kepala_keluarga: e.target.value })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-              />
-              <select
-                value={formData.status_kk}
-                onChange={(e) => setFormData({ ...formData, status_kk: e.target.value as any })}
-                className={`border rounded px-3 py-2 ${inputBg}`}
-              >
-                <option value="aktif">Aktif</option>
-                <option value="non-aktif">Non-Aktif</option>
-                <option value="pindah">Pindah</option>
-                <option value="hilang">Hilang</option>
-              </select>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>No. Kartu Keluarga</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 3201011203880001"
+                  value={formData.no_kk}
+                  onChange={(e) => setFormData({ ...formData, no_kk: e.target.value })}
+                  className={`w-full border-2 rounded px-3 py-2 ${inputBg}`}
+                  required
+                  disabled={!!editingId}
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>RT (Rukun Tetangga)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 01"
+                  value={formData.rt}
+                  onChange={(e) => setFormData({ ...formData, rt: e.target.value })}
+                  className={`w-full border-2 rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>RW (Rukun Warga)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 01"
+                  value={formData.rw}
+                  onChange={(e) => setFormData({ ...formData, rw: e.target.value })}
+                  className={`w-full border-2 rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Alamat Lengkap</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jl. Merdeka No. 123"
+                  value={formData.alamat}
+                  onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                  className={`w-full border-2 rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Kelurahan</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jaya Sampurna"
+                  value={formData.kelurahan}
+                  onChange={(e) => setFormData({ ...formData, kelurahan: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Kecamatan</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jaya Sampurna"
+                  value={formData.kecamatan}
+                  onChange={(e) => setFormData({ ...formData, kecamatan: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Kabupaten/Kota</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kabupaten Bogor"
+                  value={formData.kabupaten}
+                  onChange={(e) => setFormData({ ...formData, kabupaten: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Provinsi</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jawa Barat"
+                  value={formData.provinsi}
+                  onChange={(e) => setFormData({ ...formData, provinsi: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Nama Kepala Keluarga</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Ahmad Wijaya"
+                  value={formData.nama_kepala_keluarga}
+                  onChange={(e) => setFormData({ ...formData, nama_kepala_keluarga: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>NIK Kepala Keluarga</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 3201011203880003"
+                  value={formData.nik_kepala_keluarga}
+                  onChange={(e) => setFormData({ ...formData, nik_kepala_keluarga: e.target.value })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Status Keluarga</label>
+                <select
+                  value={formData.status_kk}
+                  onChange={(e) => setFormData({ ...formData, status_kk: e.target.value as any })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                >
+                  <option value="aktif">Aktif</option>
+                  <option value="non-aktif">Non-Aktif</option>
+                  <option value="pindah">Pindah</option>
+                  <option value="hilang">Hilang</option>
+                </select>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${textMain}`}>Kategori Keluarga</label>
+                <select
+                  value={formData.kategori_kk}
+                  onChange={(e) => setFormData({ ...formData, kategori_kk: e.target.value as any })}
+                  className={`w-full border rounded px-3 py-2 ${inputBg}`}
+                  required
+                >
+                  <option value="">- Pilih Kategori -</option>
+                  <option value="Jaya Sampurna">Jaya Sampurna</option>
+                  <option value="Luar Desa">Luar Desa</option>
+                </select>
+              </div>
               <div className="md:col-span-2 flex gap-2">
                 <button
                   type="submit"
@@ -452,8 +773,8 @@ export default function KartuKeluargaPage() {
                 onClick={handleDownloadExcel}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   isDark
-                    ? 'bg-green-600/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 hover:shadow-lg'
-                    : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:shadow-md'
+                    ? 'bg-green-600/20 text-green-300 border-2 border-green-500/30 hover:bg-green-500/30 hover:shadow-lg'
+                    : 'bg-green-50 text-green-700 border-2 border-green-200 hover:bg-green-100 hover:shadow-md'
                 }`}
               >
                 <FiDownload className="w-4 h-4" />
@@ -463,8 +784,8 @@ export default function KartuKeluargaPage() {
                 onClick={handleDownloadPDF}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   isDark
-                    ? 'bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 hover:shadow-lg'
-                    : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:shadow-md'
+                    ? 'bg-red-600/20 text-red-300 border-2 border-red-500/30 hover:bg-red-500/30 hover:shadow-lg'
+                    : 'bg-red-50 text-red-700 border-2 border-red-200 hover:bg-red-100 hover:shadow-md'
                 }`}
               >
                 <FiDownload className="w-4 h-4" />
@@ -480,129 +801,27 @@ export default function KartuKeluargaPage() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-red-700">
             Error: {error}
           </div>
         ) : (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className={`rounded-lg shadow-lg overflow-hidden ${cardBg} border`}
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px]">
-                  <thead className={`border-b ${tableBg}`}>
-                    <tr>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>No. KK</th>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>RT/RW</th>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Alamat</th>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Kepala Keluarga</th>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold ${textMain}`}>Status</th>
-                      <th className={`px-3 sm:px-6 py-2 sm:py-3 text-center text-xs sm:text-sm font-semibold ${textMain}`}>Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {data.map((kk) => (
-                      <tr key={kk.id} className={`transition ${tableHoverBg}`}>
-                        <td className={`px-3 sm:px-6 py-3 sm:py-4 font-mono text-xs sm:text-sm ${textMain}`}>{kk.no_kk}</td>
-                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textMain}`}>
-                          RT {kk.rt} / RW {kk.rw}
-                        </td>
-                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textSub}`}>{kk.alamat}</td>
-                        <td className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm ${textMain}`}>{kk.nama_kepala_keluarga}</td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4">
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                            kk.status_kk === 'aktif'
-                              ? isDark ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-800'
-                              : isDark ? 'bg-gray-500/20 text-gray-300' : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {kk.status_kk}
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
-                          {isAdmin ? (
-                            <div className="flex justify-center gap-2">
-                              <button
-                                onClick={() => handleEditKK(kk)}
-                                className={`transition p-2 rounded ${
-                                  isDark ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-600 hover:bg-blue-50'
-                                }`}
-                                title="Edit"
-                              >
-                                <FiEdit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteKK(kk.id)}
-                                className={`transition p-2 rounded ${
-                                  isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-50'
-                                }`}
-                                title="Hapus"
-                              >
-                                <FiTrash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className={`text-xs italic ${textSub}`}>Data Anda</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </motion.div>
-
-            {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Menampilkan {(page - 1) * limit + 1} - {Math.min(page * limit, total)} dari {total} data
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                    page === 1
-                      ? isDark
-                        ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDark
-                      ? 'bg-[#181926]/80 text-gray-300 border border-white/10 hover:bg-purple-500/20 hover:text-purple-300 hover:shadow-lg hover:shadow-purple-500/10'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-md'
-                  }`}
-                >
-                  <FiChevronLeft className="w-4 h-4" />
-                  <span>Sebelumnya</span>
-                </button>
-                
-                <div className={`px-5 py-2 rounded-lg font-semibold ${
-                  isDark 
-                    ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' 
-                    : 'bg-blue-50 text-blue-700 border border-blue-200'
-                }`}>
-                  Halaman {page} dari {totalPages}
-                </div>
-                
-                <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                    page === totalPages
-                      ? isDark
-                        ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDark
-                      ? 'bg-[#181926]/80 text-gray-300 border border-white/10 hover:bg-purple-500/20 hover:text-purple-300 hover:shadow-lg hover:shadow-purple-500/10'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-md'
-                  }`}
-                >
-                  <span>Berikutnya</span>
-                  <FiChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ModernTable<KartuKeluarga>
+              columns={columns}
+              data={data}
+              isDark={isDark}
+              isLoading={loading}
+              currentPage={page}
+              totalPages={Math.ceil(total / limit)}
+              totalItems={total}
+              itemsPerPage={limit}
+              onPageChange={(newPage) => setPage(newPage)}
+            />
+          </motion.div>
         )}
       </div>
     </div>

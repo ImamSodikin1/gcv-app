@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import { FiUsers, FiHome, FiBarChart2, FiTrendingUp, FiInfo } from 'react-icons/fi';
+import { FaCalculator, FaChild, FaUser } from 'react-icons/fa';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { SummaryStatistik, DistribusiUsia } from '@/interface/pendataan';
@@ -13,10 +13,16 @@ interface DistribusiPendidikan {
   jumlah: number;
 }
 
+interface DistribusiPekerjaan {
+  pekerjaan: string;
+  jumlah: number;
+}
+
 interface DashboardData {
   statistik: SummaryStatistik;
   usia: DistribusiUsia[];
   pendidikan: DistribusiPendidikan[];
+  pekerjaan?: DistribusiPekerjaan[];
 }
 
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#f97316'];
@@ -26,6 +32,7 @@ export default function PendataanDashboard() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [pekerjaanData, setPekerjaanData] = useState<DistribusiPekerjaan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,21 +42,57 @@ export default function PendataanDashboard() {
 
   const fetchDashboardData = async () => {
     if (!user) return;
-    
-    try {
-      setLoading(true);
-      const response = await fetch('/api/pendataan/dashboard', {
-        headers: {
-          'x-user-id': user.id,
-        },
-      });
-      const result = await response.json();
 
-      if (!result.success) {
-        throw new Error(result.message);
+    const readJsonSafely = async <T,>(response: Response, label: string): Promise<T> => {
+      const contentType = response.headers.get('content-type') || '';
+      const text = await response.text();
+
+      const looksLikeJson = contentType.includes('application/json') ||
+        text.trim().startsWith('{') ||
+        text.trim().startsWith('[');
+
+      if (!looksLikeJson) {
+        // Biasanya ini HTML: 404/500/redirect page (<!DOCTYPE html> ...)
+        const snippet = text.trim().slice(0, 80).replace(/\s+/g, ' ');
+        throw new Error(
+          `${label} mengembalikan non-JSON (HTTP ${response.status}). ` +
+          `Kemungkinan endpoint error/404/redirect. Snippet: ${snippet}`
+        );
       }
 
-      setDashboardData(result.data);
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new Error(`${label} mengembalikan JSON tidak valid (HTTP ${response.status}).`);
+      }
+    };
+
+    try {
+      setLoading(true);
+      const [dashboardResponse, statistikResponse] = await Promise.all([
+        fetch('/api/pendataan/dashboard', {
+          headers: {
+            'x-user-id': user.id,
+          },
+        }),
+        fetch('/api/pendataan/statistik', {
+          headers: {
+            'x-user-id': user.id,
+          },
+        }),
+      ]);
+
+      const dashboardResult = await readJsonSafely<any>(dashboardResponse, 'API /api/pendataan/dashboard');
+      const statistikResult = await readJsonSafely<any>(statistikResponse, 'API /api/pendataan/statistik');
+
+      if (!dashboardResult.success) {
+        throw new Error(dashboardResult.message);
+      }
+
+      setDashboardData(dashboardResult.data);
+      if (statistikResult.success && statistikResult.data?.distribusiPekerjaan) {
+        setPekerjaanData(statistikResult.data.distribusiPekerjaan);
+      }
       setError(null);
     } catch (err: unknown) {
       console.error('Error fetching dashboard:', err);
@@ -61,9 +104,8 @@ export default function PendataanDashboard() {
 
   if (loading) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${
-        isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gray-50'
-      }`}>
+      <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gray-50'
+        }`}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -84,6 +126,10 @@ export default function PendataanDashboard() {
   }
 
   const { statistik, usia, pendidikan } = dashboardData;
+  
+  const gridLineColor = isDark ? '#ffffff15' : '#e0e7ff';
+  const tooltipBg = isDark ? '#1e1b2e' : '#ffffff';
+  const tooltipBorder = isDark ? '#ffffff20' : '#cccccc';
 
   // Stat cards
   const statCards = [
@@ -111,22 +157,18 @@ export default function PendataanDashboard() {
   const textMain = isDark ? 'text-white' : 'text-gray-900';
   const textSub = isDark ? 'text-gray-400' : 'text-gray-600';
   const cardBg = isDark ? 'bg-gradient-to-br from-[#181926]/80 via-[#231b2e]/80 to-[#2d1e3a]/80 border-white/10' : 'bg-white border-gray-200';
-  const gridLineColor = isDark ? '#ffffff15' : '#e0e7ff';
-  const tooltipBg = isDark ? '#1e1b2e' : '#ffffff';
-  const tooltipBorder = isDark ? '#ffffff20' : '#cccccc';
 
   return (
-    <div className={`min-h-screen p-3 sm:p-6 ${
-      isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gradient-to-br from-slate-50 to-slate-100'
-    }`}>
-      <div className="max-w-7xl mx-auto">
+    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      }`}>
+      <div className={`pt-20 md:pt-6 px-4 md:px-8 pb-8 scrollbar-modern overflow-y-auto`}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 sm:mb-8"
+          className="mb-4 sm:mb-4"
         >
-          <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold ${textMain} mb-2`}>Dashboard Pendataan Warga</h1>
+          <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold ${textMain}`}>Dashboard Pendataan Warga</h1>
           <p className={`text-sm sm:text-base ${textSub}`}>Sistem Manajemen Data Penduduk RT/RW</p>
         </motion.div>
 
@@ -138,9 +180,8 @@ export default function PendataanDashboard() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`rounded-lg p-4 mb-6 flex items-start gap-3 ${
-              isDark ? 'bg-blue-500/10 border border-blue-400/30' : 'bg-blue-50 border border-blue-200'
-            }`}
+            className={`rounded-lg p-4 mb-6 flex items-start gap-3 ${isDark ? 'bg-blue-500/10 border border-blue-400/30' : 'bg-blue-50 border border-blue-200'
+              }`}
           >
             <FiInfo className="text-blue-500 mt-0.5 flex-shrink-0" size={20} />
             <div>
@@ -157,22 +198,22 @@ export default function PendataanDashboard() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8"
+          className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4 mb-4"
         >
           {statCards.map((card) => {
             const Icon = card.icon;
             const gradientClasses = {
-              blue: isDark 
-                ? 'from-blue-500/20 to-indigo-500/20 border-blue-400/30' 
+              blue: isDark
+                ? 'from-blue-500/20 to-indigo-500/20 border-blue-400/30'
                 : 'from-blue-50 to-indigo-50 border-blue-200',
-              green: isDark 
-                ? 'from-green-500/20 to-emerald-500/20 border-green-400/30' 
+              green: isDark
+                ? 'from-green-500/20 to-emerald-500/20 border-green-400/30'
                 : 'from-green-50 to-emerald-50 border-green-200',
-              purple: isDark 
-                ? 'from-purple-500/20 to-pink-500/20 border-purple-400/30' 
+              purple: isDark
+                ? 'from-purple-500/20 to-pink-500/20 border-purple-400/30'
                 : 'from-purple-50 to-pink-50 border-purple-200',
-              orange: isDark 
-                ? 'from-orange-500/20 to-red-500/20 border-orange-400/30' 
+              orange: isDark
+                ? 'from-orange-500/20 to-red-500/20 border-orange-400/30'
                 : 'from-orange-50 to-red-50 border-orange-200',
             };
 
@@ -218,211 +259,77 @@ export default function PendataanDashboard() {
           })}
         </motion.div>
 
-        {/* Gender Distribution */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-          className={`rounded-xl p-4 sm:p-6 shadow-lg mb-6 sm:mb-8 ${cardBg} border backdrop-blur-md overflow-hidden relative group`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <h2 className={`text-lg sm:text-xl font-bold ${textMain} mb-6 relative z-10`}>Distribusi Jenis Kelamin</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              className={`bg-gradient-to-br ${isDark ? 'from-blue-500/20 to-indigo-500/20' : 'from-blue-50 to-indigo-50'} 
-                border-l-4 border-blue-500 p-5 rounded-xl shadow-lg transition-all duration-300`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className={`text-sm font-semibold ${textSub}`}>Laki-laki</p>
-                <span className="text-2xl">👨</span>
-              </div>
-              <p className={`text-3xl sm:text-4xl font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} mb-2`}>
-                {statistik.total_laki_laki.toLocaleString()}
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" 
-                    style={{ width: `${((statistik.total_laki_laki / statistik.total_penduduk) * 100)}%` }}
-                  />
-                </div>
-                <p className={`text-xs font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-                  {((statistik.total_laki_laki / statistik.total_penduduk) * 100).toFixed(1)}%
-                </p>
-              </div>
-            </motion.div>
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              className={`bg-gradient-to-br ${isDark ? 'from-pink-500/20 to-rose-500/20' : 'from-pink-50 to-rose-50'} 
-                border-l-4 border-pink-500 p-5 rounded-xl shadow-lg transition-all duration-300`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className={`text-sm font-semibold ${textSub}`}>Perempuan</p>
-                <span className="text-2xl">👩</span>
-              </div>
-              <p className={`text-3xl sm:text-4xl font-bold ${isDark ? 'text-pink-300' : 'text-pink-700'} mb-2`}>
-                {statistik.total_perempuan.toLocaleString()}
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full" 
-                    style={{ width: `${((statistik.total_perempuan / statistik.total_penduduk) * 100)}%` }}
-                  />
-                </div>
-                <p className={`text-xs font-medium ${isDark ? 'text-pink-400' : 'text-pink-600'}`}>
-                  {((statistik.total_perempuan / statistik.total_penduduk) * 100).toFixed(1)}%
-                </p>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
-          {/* Distribusi Usia */}
+        <div className="grid grid-cols-1 gap-4 sm:gap-4 mb-4 sm:mb-4">
+          {/* Rata-rata Usia Penduduk */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-            className={`rounded-xl p-4 sm:p-6 shadow-lg ${cardBg} border backdrop-blur-md overflow-hidden relative group`}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <h2 className={`text-lg sm:text-xl font-bold ${textMain} mb-6 flex items-center gap-2 relative z-10`}>
-              <span className="text-2xl">👥</span>
-              Distribusi Kelompok Usia
-            </h2>
-            <div className="h-72 relative z-10">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={usia} barCategoryGap="15%">
-                  <defs>
-                    <linearGradient id="colorUsia" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8}/>
-                    </linearGradient>
-                    <filter id="shadowUsia">
-                      <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#8b5cf6" floodOpacity="0.3"/>
-                    </filter>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridLineColor} vertical={false} opacity={0.3} />
-                  <XAxis 
-                    dataKey="kelompok_usia" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={80} 
-                    tick={{ fontSize: 11, fill: isDark ? '#9ca3af' : '#4b5563', fontWeight: 500 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis 
-                    tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: tooltipBg, 
-                      border: `1px solid ${tooltipBorder}`, 
-                      borderRadius: '12px', 
-                      color: isDark ? '#fff' : '#111',
-                      boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)',
-                      padding: '12px 16px'
-                    }} 
-                    cursor={{ fill: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)' }}
-                  />
-                  <Bar 
-                    dataKey="jumlah" 
-                    fill="url(#colorUsia)" 
-                    radius={[8, 8, 0, 0]}
-                    animationDuration={1500}
-                    animationEasing="ease-in-out"
-                    filter="url(#shadowUsia)"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-
-          {/* Distribusi Pendidikan */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.5 }}
             className={`rounded-xl p-4 sm:p-6 shadow-lg ${cardBg} border backdrop-blur-md overflow-hidden relative group`}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <h2 className={`text-lg sm:text-xl font-bold ${textMain} mb-6 flex items-center gap-2 relative z-10`}>
-              <span className="text-2xl">🎓</span>
-              Distribusi Pendidikan Terakhir
+            <h2 className={`text-lg sm:text-xl font-bold ${textMain} mb-8 flex items-center gap-2 relative z-10`}>
+              {/* <span className="text-2xl">📊</span> */}
+              Statistik Rata-rata Usia Penduduk
             </h2>
-            <div className="h-72 relative z-10">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    {COLORS.map((color, index) => (
-                      <linearGradient key={index} id={`colorPendidikan${index}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity={1}/>
-                        <stop offset="100%" stopColor={color} stopOpacity={0.7}/>
-                      </linearGradient>
-                    ))}
-                    <filter id="shadowPendidikan">
-                      <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.3"/>
-                    </filter>
-                  </defs>
-                  <Pie
-                    data={pendidikan}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={{
-                      stroke: isDark ? '#9ca3af' : '#4b5563',
-                      strokeWidth: 1.5
-                    }}
-                    label={(entry: { value?: number; payload?: { pendidikan?: string } }) => {
-                      if (!entry.value || !entry.payload?.pendidikan) return '';
-                      const percent = ((entry.value / pendidikan.reduce((sum, item) => sum + item.jumlah, 0)) * 100).toFixed(0);
-                      return `${entry.payload.pendidikan}: ${percent}%`;
-                    }}
-                    outerRadius={95}
-                    dataKey="jumlah"
-                    animationDuration={1500}
-                    animationEasing="ease-in-out"
-                    animationBegin={300}
-                  >
-                    {pendidikan.map((_, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={`url(#colorPendidikan${index % COLORS.length})`}
-                        stroke={isDark ? '#1e1b2e' : '#fff'}
-                        strokeWidth={2}
-                        filter="url(#shadowPendidikan)"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: tooltipBg, 
-                      border: `1px solid ${tooltipBorder}`, 
-                      borderRadius: '12px', 
-                      color: isDark ? '#fff' : '#111',
-                      boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)',
-                      padding: '12px 16px'
-                    }}
-                  />
-                  <Legend 
-                    iconType="circle" 
-                    wrapperStyle={{ 
-                      color: isDark ? '#d1d5db' : '#374151',
-                      fontSize: '12px',
-                      paddingTop: '20px'
-                    }}
-                    formatter={(value) => {
-                      const item = pendidikan.find(d => d.pendidikan === value);
-                      return item ? `${value} (${item.jumlah})` : value;
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+              {/* Average Age */}
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 ${
+                  isDark 
+                    ? 'bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-blue-400/50' 
+                    : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300'
+                }`}
+              >
+                <FaCalculator className={`text-4xl mb-3 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                <p className={`text-sm font-medium mb-2 ${textSub}`}>Rata-rata Usia</p>
+                <p className={`text-4xl sm:text-5xl font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                  {statistik.rata_rata_usia !== undefined && statistik.rata_rata_usia !== null
+                    ? Number(statistik.rata_rata_usia).toFixed(1)
+                    : '-'}
+                </p>
+                <p className={`text-xs mt-2 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>Tahun</p>
+              </motion.div>
+
+              {/* Usia Termuda */}
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 ${
+                  isDark 
+                    ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-400/50' 
+                    : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
+                }`}
+              >
+                <FaChild className={`text-4xl mb-3 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                <p className={`text-sm font-medium mb-2 ${textSub}`}>Usia Termuda</p>
+                <p className={`text-4xl sm:text-5xl font-bold ${isDark ? 'text-green-300' : 'text-green-700'}`}>
+                  {statistik.usia_termuda !== undefined && statistik.usia_termuda !== null
+                    ? statistik.usia_termuda
+                    : '-'}
+                </p>
+                <p className={`text-xs mt-2 ${isDark ? 'text-green-400' : 'text-green-600'}`}>Tahun</p>
+              </motion.div>
+
+              {/* Usia Tertua */}
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 ${
+                  isDark 
+                    ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-purple-400/50' 
+                    : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300'
+                }`}
+              >
+                <FaUser className={`text-4xl mb-3 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
+                <p className={`text-sm font-medium mb-2 ${textSub}`}>Usia Tertua</p>
+                <p className={`text-4xl sm:text-5xl font-bold ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
+                  {statistik.usia_tertua !== undefined && statistik.usia_tertua !== null
+                    ? statistik.usia_tertua
+                    : '-'}
+                </p>
+                <p className={`text-xs mt-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>Tahun</p>
+              </motion.div>
             </div>
           </motion.div>
         </div>
@@ -432,7 +339,7 @@ export default function PendataanDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className={`rounded-lg p-4 sm:p-6 shadow-lg mb-6 sm:mb-8 ${cardBg} border`}
+          className={`rounded-lg p-4 sm:p-6 shadow-lg mb-4 sm:mb-4 ${cardBg} border`}
         >
           <h2 className={`text-lg sm:text-xl font-semibold ${textMain} mb-4`}>Distribusi Status KTP & Kartu Keluarga</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -455,8 +362,90 @@ export default function PendataanDashboard() {
           </div>
         </motion.div>
 
+        {/* Distribusi Kelompok Usia */}
+        {dashboardData.usia.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className={`rounded-lg p-4 sm:p-6 shadow-lg mb-4 sm:mb-4 ${cardBg} border`}
+          >
+            <h2 className={`text-lg sm:text-xl font-semibold ${textMain} mb-4`}>Distribusi Kelompok Usia</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {dashboardData.usia.map((item, index) => {
+                const colors = [
+                  { bg: isDark ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-400/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200', text: isDark ? 'text-blue-300' : 'text-blue-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-red-500/20 to-red-600/20 border-red-400/30' : 'bg-gradient-to-br from-red-50 to-red-100 border-red-200', text: isDark ? 'text-red-300' : 'text-red-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-green-500/20 to-green-600/20 border-green-400/30' : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200', text: isDark ? 'text-green-300' : 'text-green-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border-yellow-400/30' : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200', text: isDark ? 'text-yellow-300' : 'text-yellow-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/20 border-purple-400/30' : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200', text: isDark ? 'text-purple-300' : 'text-purple-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-400/30' : 'bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200', text: isDark ? 'text-pink-300' : 'text-pink-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 border-indigo-400/30' : 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200', text: isDark ? 'text-indigo-300' : 'text-indigo-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border-cyan-400/30' : 'bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200', text: isDark ? 'text-cyan-300' : 'text-cyan-700' },
+                ];
+                const color = colors[index % colors.length];
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.05 }}
+                    className={`rounded-lg p-4 border ${color.bg}`}
+                  >
+                    <p className={`text-xs font-semibold uppercase ${color.text}`}>{item.kelompok_usia}</p>
+                    <p className={`text-2xl font-bold mt-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.jumlah}</p>
+                    <p className={`text-xs mt-2 ${textSub}`}>Orang</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Distribution Pekerjaan */}
+        {pekerjaanData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className={`rounded-lg p-4 sm:p-6 shadow-lg mb-4 sm:mb-4 ${cardBg} border`}
+          >
+            <h2 className={`text-lg sm:text-xl font-semibold ${textMain} mb-4`}>Distribusi Pekerjaan</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {pekerjaanData.map((item, index) => {
+                const colors = [
+                  { bg: isDark ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-400/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200', text: isDark ? 'text-blue-300' : 'text-blue-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-red-500/20 to-red-600/20 border-red-400/30' : 'bg-gradient-to-br from-red-50 to-red-100 border-red-200', text: isDark ? 'text-red-300' : 'text-red-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-green-500/20 to-green-600/20 border-green-400/30' : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200', text: isDark ? 'text-green-300' : 'text-green-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border-yellow-400/30' : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200', text: isDark ? 'text-yellow-300' : 'text-yellow-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/20 border-purple-400/30' : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200', text: isDark ? 'text-purple-300' : 'text-purple-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-400/30' : 'bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200', text: isDark ? 'text-pink-300' : 'text-pink-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 border-indigo-400/30' : 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200', text: isDark ? 'text-indigo-300' : 'text-indigo-700' },
+                  { bg: isDark ? 'bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border-cyan-400/30' : 'bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200', text: isDark ? 'text-cyan-300' : 'text-cyan-700' },
+                ];
+                const color = colors[index % colors.length];
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.05 }}
+                    className={`rounded-lg p-4 border ${color.bg}`}
+                  >
+                    <p className={`text-xs font-semibold uppercase ${color.text}`}>{item.pekerjaan}</p>
+                    <p className={`text-2xl font-bold mt-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.jumlah}</p>
+                    <p className={`text-xs mt-2 ${textSub}`}>Orang</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
         {/* Quick Actions */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
@@ -468,7 +457,7 @@ export default function PendataanDashboard() {
           <Link href="/pendataan/penduduk" className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 sm:px-6 rounded-lg transition block text-center text-sm sm:text-base">
             👥 Kelola Data Penduduk
           </Link>
-        </motion.div>
+        </motion.div> */}
       </div>
     </div>
   );

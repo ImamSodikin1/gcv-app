@@ -225,7 +225,7 @@ export default function Sidebar() {
             </div>
 
             {/* Navigation Items */}
-            <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2 space-y-1' : 'p-4 space-y-2'} ${theme === 'dark' ? '' : 'bg-gradient-to-b from-white to-gray-50'}`}>
+            <nav className={`flex-1 overflow-y-auto scrollbar-modern ${collapsed ? 'p-2 space-y-1' : 'p-4 space-y-2'} ${theme === 'dark' ? '' : 'bg-gradient-to-b from-white to-gray-50'}`}>
                 {/* Collapsed: theme switcher under logo */}
                 {collapsed && (
                     <div className="flex justify-center mb-2">

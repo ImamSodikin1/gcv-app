@@ -606,7 +606,7 @@ export default function PatrolSchedule() {
                 <div className="pt-20 md:pt-6 px-4 md:px-8 pb-8">
 
                     {/* Header */}
-                    <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-5 flex items-center gap-3">
+                    <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-3 flex items-center gap-3">
                         <Link href="/dashboard">
                             <motion.button whileHover={{ x: -4 }} className={`p-2 rounded-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
                                 <FaArrowLeft size={20} />
@@ -1184,7 +1184,7 @@ export default function PatrolSchedule() {
                 {showAddModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
                         <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl max-h-[90vh] overflow-y-auto ${isDark ? 'bg-[#1a1b2e] border-white/10' : 'bg-white border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 rounded-xl bg-gradient-to-br from-pink-400/20 to-purple-400/20"><FaPlus className="text-purple-400" size={16} /></div>
                                     <h2 className={`text-xl font-bold ${textMain}`}>Tambah Jadwal Ronda</h2>

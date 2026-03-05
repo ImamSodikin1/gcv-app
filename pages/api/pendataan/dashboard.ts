@@ -36,8 +36,57 @@ export default async function handler(
 
   const userIsAdmin = isAdmin(authUser);
 
+  const safeGetKkKategoriCounts = async (createdBy?: string) => {
+    try {
+      let query = supabase.from('kartu_keluarga').select('kategori_kk');
+      if (createdBy) query = query.eq('created_by', createdBy);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const kkJayaSampurna = data?.filter((k: any) => k.kategori_kk === 'Jaya Sampurna').length || 0;
+      const kkLuarDesa = data?.filter((k: any) => k.kategori_kk === 'Luar Desa').length || 0;
+
+      return { kkJayaSampurna, kkLuarDesa };
+    } catch (err: any) {
+      // Graceful fallback: schema belum punya kolom kategori_kk atau query gagal.
+      console.warn('⚠️ Failed to fetch kartu_keluarga.kategori_kk counts:', err?.message || err);
+      return { kkJayaSampurna: 0, kkLuarDesa: 0 };
+    }
+  };
+
   try {
     console.log('📊 Fetching dashboard statistics for user:', authUser.email, 'Role:', authUser.role);
+
+    const computeAgeStats = (pendudukData?: Array<{ usia_tahun?: number | null }>) => {
+      const ages = (pendudukData || [])
+        .map((p) => p.usia_tahun)
+        .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+
+      if (ages.length === 0) {
+        return {
+          rata_rata_usia: undefined,
+          usia_termuda: undefined,
+          usia_tertua: undefined,
+        };
+      }
+
+      let sum = 0;
+      let min = ages[0];
+      let max = ages[0];
+
+      for (const age of ages) {
+        sum += age;
+        if (age < min) min = age;
+        if (age > max) max = age;
+      }
+
+      return {
+        rata_rata_usia: sum / ages.length,
+        usia_termuda: min,
+        usia_tertua: max,
+      };
+    };
 
     let stats: SummaryStatistik;
     let usia: DistribusiUsia[];
@@ -54,10 +103,12 @@ export default async function handler(
 
       if (kkError) throw kkError;
 
+      const { kkJayaSampurna, kkLuarDesa } = await safeGetKkKategoriCounts();
+
       // Get all penduduk data
       const { data: pendudukData, error: pendudukError } = await supabase
         .from('penduduk')
-        .select('jenis_kelamin, status_ktp, status_kk, pendidikan_terakhir, usia_tahun');
+        .select('jenis_kelamin, status_ktp, pendidikan_terakhir, usia_tahun');
 
       if (pendudukError) throw pendudukError;
 
@@ -66,8 +117,8 @@ export default async function handler(
       const totalPerempuan = pendudukData?.filter(p => p.jenis_kelamin === 'Perempuan').length || 0;
       const ktpJayaSampurna = pendudukData?.filter(p => p.status_ktp === 'KTP Jaya Sampurna').length || 0;
       const ktpLuarDesa = pendudukData?.filter(p => p.status_ktp === 'KTP Luar Desa').length || 0;
-      const kkJayaSampurna = pendudukData?.filter(p => p.status_kk === 'Anggota KK Jaya Sampurna').length || 0;
-      const kkLuarDesa = pendudukData?.filter(p => p.status_kk === 'Anggota KK Luar Desa').length || 0;
+
+      const { rata_rata_usia, usia_termuda, usia_tertua } = computeAgeStats(pendudukData as any);
 
       stats = {
         total_kk: kkCount || 0,
@@ -78,19 +129,27 @@ export default async function handler(
         ktp_luar_desa: ktpLuarDesa,
         kk_jaya_sampurna: kkJayaSampurna,
         kk_luar_desa: kkLuarDesa,
+        rata_rata_usia,
+        usia_termuda,
+        usia_tertua,
       };
 
-      // Distribusi usia
+      // Distribusi usia - dengan range: 0-5, 6-11, 12-15, 16-20, 21-25, dst (5 tahunan)
       const usiaMap = new Map<string, number>();
       pendudukData?.forEach(p => {
         let kelompok = '';
-        if (p.usia_tahun < 5) kelompok = '0-4';
-        else if (p.usia_tahun < 12) kelompok = '5-11';
-        else if (p.usia_tahun < 18) kelompok = '12-17';
-        else if (p.usia_tahun < 25) kelompok = '18-24';
-        else if (p.usia_tahun < 35) kelompok = '25-34';
-        else if (p.usia_tahun < 45) kelompok = '35-44';
-        else if (p.usia_tahun < 60) kelompok = '45-59';
+        if (p.usia_tahun <= 5) kelompok = '0-5';
+        else if (p.usia_tahun <= 11) kelompok = '6-11';
+        else if (p.usia_tahun <= 15) kelompok = '12-15';
+        else if (p.usia_tahun <= 20) kelompok = '16-20';
+        else if (p.usia_tahun <= 25) kelompok = '21-25';
+        else if (p.usia_tahun <= 30) kelompok = '26-30';
+        else if (p.usia_tahun <= 35) kelompok = '31-35';
+        else if (p.usia_tahun <= 40) kelompok = '36-40';
+        else if (p.usia_tahun <= 45) kelompok = '41-45';
+        else if (p.usia_tahun <= 50) kelompok = '46-50';
+        else if (p.usia_tahun <= 55) kelompok = '51-55';
+        else if (p.usia_tahun <= 60) kelompok = '56-60';
         else kelompok = '60+';
         
         usiaMap.set(kelompok, (usiaMap.get(kelompok) || 0) + 1);
@@ -124,10 +183,12 @@ export default async function handler(
 
       if (kkError) throw kkError;
 
+      const { kkJayaSampurna, kkLuarDesa } = await safeGetKkKategoriCounts(authUser.id);
+
       // Get penduduk for user with gender and KTP status
       const { data: pendudukData, error: pendudukError } = await supabase
         .from('penduduk')
-        .select('jenis_kelamin, status_ktp, status_kk, pendidikan_terakhir, usia_tahun')
+        .select('jenis_kelamin, status_ktp, pendidikan_terakhir, usia_tahun')
         .eq('created_by', authUser.id);
 
       if (pendudukError) throw pendudukError;
@@ -137,8 +198,8 @@ export default async function handler(
       const totalPerempuan = pendudukData?.filter(p => p.jenis_kelamin === 'Perempuan').length || 0;
       const ktpJayaSampurna = pendudukData?.filter(p => p.status_ktp === 'KTP Jaya Sampurna').length || 0;
       const ktpLuarDesa = pendudukData?.filter(p => p.status_ktp === 'KTP Luar Desa').length || 0;
-      const kkJayaSampurna = pendudukData?.filter(p => p.status_kk === 'Anggota KK Jaya Sampurna').length || 0;
-      const kkLuarDesa = pendudukData?.filter(p => p.status_kk === 'Anggota KK Luar Desa').length || 0;
+
+      const { rata_rata_usia, usia_termuda, usia_tertua } = computeAgeStats(pendudukData as any);
 
       stats = {
         total_kk: kkCount || 0,
@@ -149,19 +210,27 @@ export default async function handler(
         ktp_luar_desa: ktpLuarDesa,
         kk_jaya_sampurna: kkJayaSampurna,
         kk_luar_desa: kkLuarDesa,
+        rata_rata_usia,
+        usia_termuda,
+        usia_tertua,
       };
 
-      // Distribusi usia untuk user
+      // Distribusi usia untuk user - dengan range: 0-5, 6-11, 12-15, 16-20, 21-25, dst (5 tahunan)
       const usiaMap = new Map<string, number>();
       pendudukData?.forEach(p => {
         let kelompok = '';
-        if (p.usia_tahun < 5) kelompok = '0-4';
-        else if (p.usia_tahun < 12) kelompok = '5-11';
-        else if (p.usia_tahun < 18) kelompok = '12-17';
-        else if (p.usia_tahun < 25) kelompok = '18-24';
-        else if (p.usia_tahun < 35) kelompok = '25-34';
-        else if (p.usia_tahun < 45) kelompok = '35-44';
-        else if (p.usia_tahun < 60) kelompok = '45-59';
+        if (p.usia_tahun <= 5) kelompok = '0-5';
+        else if (p.usia_tahun <= 11) kelompok = '6-11';
+        else if (p.usia_tahun <= 15) kelompok = '12-15';
+        else if (p.usia_tahun <= 20) kelompok = '16-20';
+        else if (p.usia_tahun <= 25) kelompok = '21-25';
+        else if (p.usia_tahun <= 30) kelompok = '26-30';
+        else if (p.usia_tahun <= 35) kelompok = '31-35';
+        else if (p.usia_tahun <= 40) kelompok = '36-40';
+        else if (p.usia_tahun <= 45) kelompok = '41-45';
+        else if (p.usia_tahun <= 50) kelompok = '46-50';
+        else if (p.usia_tahun <= 55) kelompok = '51-55';
+        else if (p.usia_tahun <= 60) kelompok = '56-60';
         else kelompok = '60+';
         
         usiaMap.set(kelompok, (usiaMap.get(kelompok) || 0) + 1);
@@ -200,7 +269,7 @@ export default async function handler(
     console.error('🔴 Dashboard statistics error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch statistics',
+      message: `Failed to fetch statistics${error?.message ? `: ${error.message}` : ''}`,
       error: error.message,
     });
   }

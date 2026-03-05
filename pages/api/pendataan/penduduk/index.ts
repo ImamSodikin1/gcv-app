@@ -126,7 +126,7 @@ export default async function handler(
       const form: PendudukForm = req.body;
 
       // Validasi
-      const required = ['nik', 'nama_lengkap', 'jenis_kelamin', 'tanggal_lahir', 'hubungan_keluarga', 'status_ktp', 'status_kk', 'kartu_keluarga_id'];
+      const required = ['nama_lengkap', 'jenis_kelamin', 'tanggal_lahir', 'hubungan_keluarga', 'status_ktp', 'kartu_keluarga_id'];
       const missing = required.filter((field) => !form[field as keyof PendudukForm]);
 
       if (missing.length > 0) {
@@ -154,14 +154,14 @@ export default async function handler(
         });
       }
 
-      // Validate KTP requirement
-      if (form.status_ktp !== 'Belum KTP' && !form.no_ktp) {
-        console.warn('⚠️ KTP number required for non-Belum KTP status');
-        return res.status(400).json({
-          success: false,
-          message: 'Nomor KTP harus diisi jika status KTP bukan "Belum KTP"',
-        });
-      }
+      // // Validate KTP requirement
+      // if (form.status_ktp !== 'Belum KTP' && !form.no_ktp) {
+      //   console.warn('⚠️ KTP number required for non-Belum KTP status');
+      //   return res.status(400).json({
+      //     success: false,
+      //     message: 'Nomor KTP harus diisi jika status KTP bukan "Belum KTP"',
+      //   });
+      // }
 
       const { data: newPenduduk, error: insertError } = await supabase
         .from('penduduk')

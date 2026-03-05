@@ -281,7 +281,7 @@ export default function RondaReports() {
             <Head><title>Laporan Ronda - Sistem Perumahan</title></Head>
             <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0f0c1a] via-[#1a1625] to-[#0f0c1a]' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 md:p-6 transition-colors duration-300`}>
                 {/* Header */}
-                <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
                         <Link href="/ronda/schedule" className={`p-2 rounded-xl border ${isDark ? 'border-white/10 bg-white/5 hover:bg-white/10 text-white' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'} transition`}>
                             <FaArrowLeft size={14} />
@@ -303,7 +303,7 @@ export default function RondaReports() {
                 </motion.div>
 
                 {/* Stats Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {[
                         { label: 'Total Laporan', value: stats.totalReports, icon: <FaFileAlt className="text-blue-400" size={16} />, gradient: 'from-blue-400/15 to-cyan-400/15', border: isDark ? 'border-blue-400/20' : 'border-blue-200' },
                         { label: 'Kejadian', value: stats.totalKejadian, icon: <FaExclamationTriangle className="text-red-400" size={16} />, gradient: 'from-red-400/15 to-orange-400/15', border: isDark ? 'border-red-400/20' : 'border-red-200' },
@@ -318,7 +318,7 @@ export default function RondaReports() {
                 </div>
 
                 {/* Chart: Laporan per Blok */}
-                <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className={`border rounded-xl p-5 backdrop-blur-md ${cardClass} mb-6`}>
+                <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className={`border rounded-xl p-5 backdrop-blur-md ${cardClass} mb-4`}>
                     <div className="flex items-center gap-2 mb-4">
                         <FaChartBar className="text-blue-400" size={14} />
                         <h3 className={`text-base font-bold ${textMain}`}>Laporan per Blok</h3>
@@ -339,7 +339,7 @@ export default function RondaReports() {
                 </motion.div>
 
                 {/* Jenis Kejadian & Lokasi Kejadian */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-4">
                     {/* Jenis Kejadian */}
                     <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }} className={`border rounded-xl p-5 backdrop-blur-md ${cardClass} overflow-hidden relative group`}>
                         <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />

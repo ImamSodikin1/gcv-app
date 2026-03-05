@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.penduduk (
   kartu_keluarga_id UUID NOT NULL REFERENCES public.kartu_keluarga(id) ON DELETE CASCADE,
   
   -- Data Dasar
-  nik TEXT NOT NULL UNIQUE,  -- Nomor Induk Kependudukan (ID)
+  nik TEXT,  -- Nomor Induk Kependudukan (Optional jika Belum KTP)
   nama_lengkap TEXT NOT NULL,
   jenis_kelamin TEXT NOT NULL CHECK (jenis_kelamin IN ('Laki-laki', 'Perempuan')),
   
@@ -79,10 +79,10 @@ CREATE TABLE IF NOT EXISTS public.penduduk (
   
   -- Status KTP
   status_ktp TEXT NOT NULL CHECK (status_ktp IN ('KTP Jaya Sampurna', 'KTP Luar Desa', 'Belum KTP')),
-  no_ktp TEXT UNIQUE,
+  no_ktp TEXT,  -- Nomor KTP (Optional jika Belum KTP atau belum terdaftar)
   
-  -- Pekerjaan
-  pekerjaan TEXT,
+  -- Pekerjaan & Status Kerja
+  pekerjaan TEXT,  -- Optional, hanya diisi jika status_pekerjaan = 'Bekerja'
   status_pekerjaan TEXT CHECK (status_pekerjaan IN ('Bekerja', 'Tidak Bekerja', 'Sekolah', 'Mengurus Rumah Tangga', 'Lainnya')),
   
   -- Status KK
@@ -91,13 +91,28 @@ CREATE TABLE IF NOT EXISTS public.penduduk (
   -- Pendidikan
   pendidikan_terakhir TEXT CHECK (pendidikan_terakhir IN ('Tidak Sekolah', 'SD', 'SMP', 'SMA', 'Diploma', 'S1', 'S2', 'S3')),
   
-  -- Status Kesehatan
-  status_kesehatan TEXT,
-  penyakit_bawaan TEXT,
+  -- Catatan Tambahan
+  catatan TEXT,
   
   -- Metadata
-  catatan TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_by UUID REFERENCES public.users(id),
+  
+  -- Constraints untuk data integritas
+  CONSTRAINT nik_required_for_ktp CHECK (
+    (status_ktp = 'Belum KTP' AND nik IS NULL) OR
+    (status_ktp IN ('KTP Jaya Sampurna', 'KTP Luar Desa') AND nik IS NOT NULL)
+  ),
+  CONSTRAINT no_ktp_required_for_status CHECK (
+    (status_ktp = 'Belum KTP' AND no_ktp IS NULL) OR
+    (status_ktp IN ('KTP Jaya Sampurna', 'KTP Luar Desa') AND no_ktp IS NOT NULL)
+  ),
+  CONSTRAINT pekerjaan_required_for_bekerja CHECK (
+    (status_pekerjaan != 'Bekerja' AND pekerjaan IS NULL) OR
+    (status_pekerjaan = 'Bekerja' AND pekerjaan IS NOT NULL)
+  )
+);
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   created_by UUID REFERENCES public.users(id)
 );

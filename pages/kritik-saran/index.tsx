@@ -230,7 +230,7 @@ export default function KritikSaranPage() {
             <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0f0c1a] via-[#1a1625] to-[#0f0c1a]' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 md:p-6 transition-colors duration-300`}>
 
                 {/* Header */}
-                <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
                         <Link href="/dashboard" className={`p-2 rounded-xl border ${isDark ? 'border-white/10 bg-white/5 hover:bg-white/10 text-white' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'} transition`}>
                             <FaArrowLeft size={14} />
@@ -251,7 +251,7 @@ export default function KritikSaranPage() {
                 </motion.div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
                     {[
                         { label: 'Total', value: stats.total, icon: <FaCommentDots className="text-purple-400" size={14} />, gradient: 'from-purple-400/15 to-violet-500/15', border: isDark ? 'border-purple-400/20' : 'border-purple-200' },
                         { label: 'Kritik', value: stats.kritik, icon: <FaExclamationTriangle className="text-red-400" size={14} />, gradient: 'from-red-400/15 to-rose-500/15', border: isDark ? 'border-red-400/20' : 'border-red-200' },

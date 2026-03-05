@@ -91,7 +91,7 @@ export default function PenggunaPage() {
             <Head><title>Pengguna - Sistem Manajemen Perumahan</title></Head>
             <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0f0f1a] via-[#1a0f2e] to-[#2d1e3a]' : 'bg-gray-50'}`}>
                 <div className="pt-20 md:pt-6 px-4 md:px-8 pb-8">
-                    <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-5 flex items-center gap-3">
+                    <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-4 flex items-center gap-3">
                         <Link href="/dashboard">
                             <motion.button whileHover={{ x: -4 }} className={`p-2 rounded-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
                                 <FaArrowLeft size={20} />
@@ -104,7 +104,7 @@ export default function PenggunaPage() {
                     </motion.div>
 
                     {/* Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                         {[
                             { label: 'Total Pengguna', value: userList.length.toString(), color: 'text-blue-400', bg: 'from-blue-400/20 to-indigo-500/20', icon: <FaUsers /> },
                             { label: 'Admin', value: userList.filter(u => u.role === 'admin' || u.role === 'superadmin').length.toString(), color: 'text-purple-400', bg: 'from-purple-400/20 to-violet-500/20', icon: <FaUserShield /> },
@@ -203,7 +203,7 @@ export default function PenggunaPage() {
                             className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-[#1a1b2e] border-white/10' : 'bg-white border-gray-200'}`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center justify-between mb-4">
                                 <h2 className={`text-xl font-bold ${textMain}`}>Ubah Role Pengguna</h2>
                                 <button onClick={() => setShowEditModal(false)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
                                     <FaTimes size={18} />
@@ -241,7 +241,7 @@ export default function PenggunaPage() {
                                 )}
                             </div>
 
-                            <div className="flex gap-3 mt-6">
+                            <div className="flex gap-3 mt-4">
                                 <button
                                     onClick={() => setShowEditModal(false)}
                                     className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}

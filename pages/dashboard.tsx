@@ -137,9 +137,9 @@ export default function Dashboard() {
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-2"
                     >
-                        <h1 className="text-4xl md:text-5xl font-bold mb-2">
+                        <h1 className="text-4xl md:text-5xl font-bold">
                             <span className="bg-gradient-to-r from-blue-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
                                 Dashboard
                             </span>
@@ -164,13 +164,13 @@ export default function Dashboard() {
                             initial={{ y: 10, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.3 }}
-                            className={`mb-8 p-5 rounded-xl border backdrop-blur-md ${
+                            className={`mb-4 p-5 rounded-xl border backdrop-blur-md ${
                                 isDark
                                     ? 'bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border-blue-400/20'
                                     : 'bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-blue-200'
                             }`}
                         >
-                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                            <div className="flex flex-col md:flex-row items-start md:items-center gap-2">
                                 <div className="flex-1">
                                     <h3 className={`text-lg font-bold mb-1 ${textMain}`}>
                                         Bergabung dengan Sistem Manajemen Perumahan
@@ -214,7 +214,7 @@ export default function Dashboard() {
                         variants={containerVariants}
                         initial="hidden"
                         animate="visible"
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4"
                     >
                         {stats.map((stat, index) => (
                             <motion.div
@@ -245,7 +245,7 @@ export default function Dashboard() {
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.3, duration: 0.5 }}
-                        className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5"
+                        className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4"
                     >
                         {/* Area Chart - Keuangan Bulanan */}
                         <div className={`border rounded-xl p-6 backdrop-blur-md ${cardClass} overflow-hidden relative group`}>

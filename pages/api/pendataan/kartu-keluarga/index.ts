@@ -9,6 +9,16 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
+const isBlank = (value: unknown) => {
+  if (value == null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  return false;
+};
+
+const isValidKategoriKk = (value: unknown): value is NonNullable<KartuKeluargaForm['kategori_kk']> => {
+  return value === 'Jaya Sampurna' || value === 'Luar Desa';
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<KartuKeluarga> | PaginatedResponse<KartuKeluarga>>
@@ -105,11 +115,33 @@ export default async function handler(
       const form: KartuKeluargaForm = req.body;
 
       // Validasi
-      if (!form.no_kk || !form.rt || !form.rw || !form.alamat || !form.nama_kepala_keluarga) {
-        console.warn('⚠️ Missing required fields');
+      const requiredKeys: Array<keyof KartuKeluargaForm> = [
+        'no_kk',
+        'rt',
+        'rw',
+        'alamat',
+        'kelurahan',
+        'kecamatan',
+        'kabupaten',
+        'provinsi',
+        'nama_kepala_keluarga',
+        'nik_kepala_keluarga',
+        'kategori_kk',
+      ];
+
+      const missing = requiredKeys.filter((key) => isBlank((form as any)[key]));
+      if (missing.length > 0) {
+        console.warn('⚠️ Missing required fields:', missing.join(', '));
         return res.status(400).json({
           success: false,
-          message: 'Missing required fields: no_kk, rt, rw, alamat, nama_kepala_keluarga',
+          message: `Field wajib diisi: ${missing.join(', ')}`,
+        });
+      }
+
+      if (!isValidKategoriKk(form.kategori_kk)) {
+        return res.status(400).json({
+          success: false,
+          message: 'kategori_kk harus salah satu dari: Jaya Sampurna, Luar Desa',
         });
       }
 
@@ -165,7 +197,8 @@ export default async function handler(
   // PUT - Update Kartu Keluarga
   if (req.method === 'PUT') {
     try {
-      const { id, ...form } = req.body;
+      const { id, ...rest } = req.body;
+      const form: KartuKeluargaForm = rest;
 
       if (!id) {
         return res.status(400).json({
@@ -195,6 +228,35 @@ export default async function handler(
         return res.status(403).json({
           success: false,
           message: 'Anda tidak memiliki izin untuk mengubah data ini',
+        });
+      }
+
+      const requiredKeys: Array<keyof KartuKeluargaForm> = [
+        'no_kk',
+        'rt',
+        'rw',
+        'alamat',
+        'kelurahan',
+        'kecamatan',
+        'kabupaten',
+        'provinsi',
+        'nama_kepala_keluarga',
+        'nik_kepala_keluarga',
+        'kategori_kk',
+      ];
+
+      const missing = requiredKeys.filter((key) => isBlank((form as any)[key]));
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Field wajib diisi: ${missing.join(', ')}`,
+        });
+      }
+
+      if (!isValidKategoriKk(form.kategori_kk)) {
+        return res.status(400).json({
+          success: false,
+          message: 'kategori_kk harus salah satu dari: Jaya Sampurna, Luar Desa',
         });
       }
 

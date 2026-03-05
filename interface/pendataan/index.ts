@@ -11,7 +11,9 @@ export interface KartuKeluarga {
   kelurahan?: string;
   kecamatan?: string;
   kabupaten?: string;
+  provinsi?: string;
   status_kk: 'aktif' | 'non-aktif' | 'pindah' | 'hilang';
+  kategori_kk?: 'Jaya Sampurna' | 'Luar Desa';
   nama_kepala_keluarga: string;
   nik_kepala_keluarga?: string;
   created_at: string;
@@ -28,7 +30,9 @@ export interface KartuKeluargaForm {
   kelurahan?: string;
   kecamatan?: string;
   kabupaten?: string;
+  provinsi?: string;
   status_kk: 'aktif' | 'non-aktif' | 'pindah' | 'hilang';
+  kategori_kk?: 'Jaya Sampurna' | 'Luar Desa';
   nama_kepala_keluarga: string;
   nik_kepala_keluarga?: string;
 }
@@ -50,7 +54,6 @@ export interface Penduduk {
   no_ktp?: string;
   pekerjaan?: string;
   status_pekerjaan?: 'Bekerja' | 'Tidak Bekerja' | 'Sekolah' | 'Mengurus Rumah Tangga' | 'Lainnya';
-  status_kk: 'Anggota KK Jaya Sampurna' | 'Anggota KK Luar Desa' | 'KTP Luar per KK';
   pendidikan_terakhir?: 'Tidak Sekolah' | 'SD' | 'SMP' | 'SMA' | 'Diploma' | 'S1' | 'S2' | 'S3';
   status_kesehatan?: string;
   penyakit_bawaan?: string;
@@ -75,7 +78,6 @@ export interface PendudukForm {
   no_ktp?: string;
   pekerjaan?: string;
   status_pekerjaan?: 'Bekerja' | 'Tidak Bekerja' | 'Sekolah' | 'Mengurus Rumah Tangga' | 'Lainnya';
-  status_kk: 'Anggota KK Jaya Sampurna' | 'Anggota KK Luar Desa' | 'KTP Luar per KK';
   pendidikan_terakhir?: 'Tidak Sekolah' | 'SD' | 'SMP' | 'SMA' | 'Diploma' | 'S1' | 'S2' | 'S3';
   status_kesehatan?: string;
   penyakit_bawaan?: string;
@@ -92,6 +94,9 @@ export interface SummaryStatistik {
   ktp_luar_desa: number;
   kk_jaya_sampurna: number;
   kk_luar_desa: number;
+  rata_rata_usia?: number;
+  usia_termuda?: number;
+  usia_tertua?: number;
 }
 
 export interface DistribusiUsia {
@@ -107,6 +112,23 @@ export interface DistribusiPekerjaan {
 export interface DistribusiGolonganDarah {
   golongan_darah: string;
   jumlah: number;
+}
+
+// 3. MASTER PEKERJAAN (Job Master Data)
+export interface Pekerjaan {
+  id: string;
+  nama_pekerjaan: string;
+  keterangan?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface PekerjaanForm {
+  nama_pekerjaan: string;
+  keterangan?: string;
+  is_active?: boolean;
 }
 
 // 4. API RESPONSES
